@@ -38,12 +38,12 @@ def seed_database():
                 email="admin@secureeye.local",
                 username="admin",
                 full_name="SecureEye Admin",
-                hashed_password=hash_password("admin"),
+                hashed_password=hash_password("admin123"),
                 role=UserRole.admin,
                 is_active=True,
             )
             db.add(admin_user)
-            logger.info("Default admin user created: admin / admin")
+            logger.info("Default admin user created: admin / admin123")
 
         # Default analyst
         if not db.query(User).filter(User.username == "analyst").first():
@@ -121,6 +121,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Force seeding on startup for reliable cloud deployments
+seed_database()
 
 # CORS — allow React dev server and production origins
 allowed_origins = [

@@ -8,6 +8,12 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+# --- MONKEYPATCH FOR PASSLIB/BCRYPT BUG ---
+from passlib.handlers.bcrypt import bcrypt as _bcrypt
+if not hasattr(_bcrypt, "__about__"):
+    _bcrypt.__about__ = type("About", (object,), {"__version__": "4.0.1"})
+# ------------------------------------------
+
 import models
 from database import engine, SessionLocal, get_db
 from config import settings

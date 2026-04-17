@@ -29,11 +29,17 @@ scheduler = AsyncIOScheduler()
 
 
 def seed_database():
-    """Create default users and sectors on first run."""
+    """Create default users and sectors. Force-overwrites admin for cloud recovery."""
     db = SessionLocal()
     try:
-        # Default admin user
-        if not db.query(User).filter(User.username == "admin").first():
+        # Check for existing admin
+        existing_admin = db.query(User).filter(User.username == "admin").first()
+        
+        if existing_admin:
+            # Overwrite password to ensure it matches the current hashing algorithm (PBKDF2)
+            existing_admin.hashed_password = hash_password("admin123")
+            logger.info("Admin user password reset to 'admin123' (PBKDF2)")
+        else:
             admin_user = User(
                 email="admin@secureeye.local",
                 username="admin",
@@ -43,31 +49,29 @@ def seed_database():
                 is_active=True,
             )
             db.add(admin_user)
-            logger.info("Default admin user created: admin / admin123")
+            logger.info("New admin user created: admin / admin123")
 
         # Default analyst
         if not db.query(User).filter(User.username == "analyst").first():
-            analyst = User(
+            db.add(User(
                 email="analyst@secureeye.local",
                 username="analyst",
                 full_name="SecureEye Analyst",
-                hashed_password=hash_password("analyst"),
+                hashed_password=hash_password("analyst123"),
                 role=UserRole.analyst,
                 is_active=True,
-            )
-            db.add(analyst)
+            ))
 
         # Default viewer
         if not db.query(User).filter(User.username == "viewer").first():
-            viewer = User(
+            db.add(User(
                 email="viewer@secureeye.local",
                 username="viewer",
                 full_name="SecureEye Viewer",
-                hashed_password=hash_password("viewer"),
+                hashed_password=hash_password("viewer123"),
                 role=UserRole.viewer,
                 is_active=True,
-            )
-            db.add(viewer)
+            ))
 
         # Default sectors
         default_sectors = [
@@ -84,7 +88,7 @@ def seed_database():
                 db.add(Sector(name=name, description=desc))
 
         db.commit()
-        logger.info("Database seeded successfully")
+        logger.info("Database seeding/recovery successful")
     except Exception as e:
         db.rollback()
         logger.error(f"Seeding failed: {e}")
@@ -122,7 +126,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Force seeding on startup for reliable cloud deployments
+# Force seeding on every boot for reliable cloud deployments
 seed_database()
 
 # CORS — allow React dev server and production origins

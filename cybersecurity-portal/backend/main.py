@@ -1,14 +1,3 @@
-# --- MONKEYPATCH FOR PASSLIB/BCRYPT BUG ---
-import passlib.handlers.bcrypt
-import passlib.utils.handlers
-from passlib.handlers.bcrypt import bcrypt as _bcrypt
-if not hasattr(_bcrypt, "__about__"):
-    _bcrypt.__about__ = type("About", (object,), {"__version__": "4.0.1"})
-
-def mock_detect_wrap_bug(ident): return False
-passlib.handlers.bcrypt.detect_wrap_bug = mock_detect_wrap_bug
-# ------------------------------------------
-
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -40,10 +29,10 @@ scheduler = AsyncIOScheduler()
 
 
 def seed_database():
-    """Create default admin user and sectors on first run."""
+    """Create default users and sectors on first run."""
     db = SessionLocal()
     try:
-        # Default admin user
+        # Force recreation of admin if not present
         if not db.query(User).filter(User.username == "admin").first():
             admin_user = User(
                 email="admin@secureeye.local",

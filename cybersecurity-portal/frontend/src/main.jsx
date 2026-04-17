@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import App from './App'
 import './index.css'
 
@@ -21,6 +22,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           error: { iconTheme: { primary: '#ef4444', secondary: '#0f172a' } },
         }}
       />
+      <SpeedInsights />
     </BrowserRouter>
   </React.StrictMode>
 )

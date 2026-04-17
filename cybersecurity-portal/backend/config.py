@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     WEB_SEARCH_RESULTS_LIMIT: int = 10
     GOOGLE_SEARCH_API_KEY: str = ""
     GOOGLE_SEARCH_ENGINE_ID: str = ""
+    NVD_API_KEY: str = ""
 
     # Feed polling interval in minutes
     FEED_POLL_INTERVAL_MINUTES: int = 30

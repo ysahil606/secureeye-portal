@@ -690,8 +690,12 @@ async def fetch_nvd_recent(db: Session, days_back: int = 1) -> dict:
             "pubEndDate": pub_end,
             "resultsPerPage": 100,
         }
-        async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.get(NVD_API_URL, params=params)
+        headers = {"User-Agent": "SecureEye-Portal/1.0"}
+        if settings.NVD_API_KEY:
+            headers["apiKey"] = settings.NVD_API_KEY
+
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.get(NVD_API_URL, params=params, headers=headers)
             r.raise_for_status()
             data = r.json()
 

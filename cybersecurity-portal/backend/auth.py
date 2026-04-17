@@ -1,3 +1,13 @@
+# --- MONKEYPATCH FOR PASSLIB/BCRYPT BUG ---
+import passlib.handlers.bcrypt
+from passlib.handlers.bcrypt import bcrypt as _bcrypt
+if not hasattr(_bcrypt, "__about__"):
+    _bcrypt.__about__ = type("About", (object,), {"__version__": "4.0.1"})
+
+def mock_detect_wrap_bug(ident): return False
+passlib.handlers.bcrypt.detect_wrap_bug = mock_detect_wrap_bug
+# ------------------------------------------
+
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt

@@ -1,3 +1,14 @@
+# --- MONKEYPATCH FOR PASSLIB/BCRYPT BUG ---
+import passlib.handlers.bcrypt
+import passlib.utils.handlers
+from passlib.handlers.bcrypt import bcrypt as _bcrypt
+if not hasattr(_bcrypt, "__about__"):
+    _bcrypt.__about__ = type("About", (object,), {"__version__": "4.0.1"})
+
+def mock_detect_wrap_bug(ident): return False
+passlib.handlers.bcrypt.detect_wrap_bug = mock_detect_wrap_bug
+# ------------------------------------------
+
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -7,17 +18,6 @@ from typing import Optional, List
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-
-# --- MONKEYPATCH FOR PASSLIB/BCRYPT BUG ---
-import passlib.handlers.bcrypt
-from passlib.handlers.bcrypt import bcrypt as _bcrypt
-if not hasattr(_bcrypt, "__about__"):
-    _bcrypt.__about__ = type("About", (object,), {"__version__": "4.0.1"})
-
-# Completely disable the long password check that crashes on Render
-def mock_detect_wrap_bug(ident): return False
-passlib.handlers.bcrypt.detect_wrap_bug = mock_detect_wrap_bug
-# ------------------------------------------
 
 import models
 from database import engine, SessionLocal, get_db
@@ -62,7 +62,7 @@ def seed_database():
                 email="analyst@secureeye.local",
                 username="analyst",
                 full_name="SecureEye Analyst",
-                hashed_password=hash_password("Analyst@123"),
+                hashed_password=hash_password("analyst"),
                 role=UserRole.analyst,
                 is_active=True,
             )
@@ -74,7 +74,7 @@ def seed_database():
                 email="viewer@secureeye.local",
                 username="viewer",
                 full_name="SecureEye Viewer",
-                hashed_password=hash_password("Viewer@123"),
+                hashed_password=hash_password("viewer"),
                 role=UserRole.viewer,
                 is_active=True,
             )
@@ -111,7 +111,7 @@ async def lifespan(app: FastAPI):
 
     # Schedule feed polling
     scheduler.add_job(
-        threat_feeds.run_all_feeds,
+        threat_feeds.run_all_feeds_sync,
         "interval",
         minutes=settings.FEED_POLL_INTERVAL_MINUTES,
         id="feed_poll",

@@ -31,7 +31,13 @@ export default function MITREMatrix() {
     return 'bg-red-600/40 text-white border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
   }
 
-  if (loading) return null
+  if (loading) return (
+    <div className="flex justify-center py-20">
+      <div className="w-10 h-10 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+    </div>
+  )
+
+  const hasData = Object.keys(stats).length > 0
 
   return (
     <div className="card p-6 space-y-6">
@@ -47,7 +53,13 @@ export default function MITREMatrix() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      {!hasData ? (
+        <div className="py-20 text-center bg-dark-800/20 rounded-xl border border-dashed border-dark-600">
+          <div className="text-blue-400 font-bold mb-1">Matrix Initialization Required</div>
+          <p className="text-xs text-slate-500">Run threat feeds in Feed Management to populate the heatmap.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {TACTICS.map(tactic => (
           <div key={tactic.id} className="space-y-2">
             <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-dark-600 pb-1.5 mb-2">
@@ -66,7 +78,8 @@ export default function MITREMatrix() {
             </div>
           </div>
         ))}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

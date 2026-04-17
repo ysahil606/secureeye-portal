@@ -49,6 +49,18 @@ export default function ThreatGraph({ advisoryId }) {
             links.push({ source: 'ADV', target: id })
           });
 
+          (adv.mitre_ttps || []).forEach((ttp, i) => {
+            const id = `ttp-${i}`
+            nodes.push({ id, label: 'TTP', name: ttp, color: '#a855f7', val: 5 })
+            links.push({ source: 'ADV', target: id })
+          });
+
+          (adv.apt_groups || []).forEach((apt, i) => {
+            const id = `apt-${i}`
+            nodes.push({ id, label: 'APT', name: apt, color: '#facc15', val: 6 })
+            links.push({ source: 'ADV', target: id })
+          });
+
           (adv.attack_types || []).forEach((at, i) => {
             const id = `at-${i}`
             nodes.push({ id, label: 'ATTACK', name: at, color: '#f97316', val: 4 })

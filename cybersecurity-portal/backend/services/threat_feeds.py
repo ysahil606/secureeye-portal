@@ -322,6 +322,42 @@ async def _search_google_web(query: str, limit: int = 10) -> List[dict]:
 
 
 async def _search_brave_web(query: str, limit: int = 10) -> List[dict]:
+    # Use API if available
+    if settings.BRAVE_API_KEY:
+        try:
+            url = "https://api.search.brave.com/res/v1/web/search"
+            headers = {
+                "Accept": "application/json",
+                "Accept-Encoding": "gzip",
+                "X-Subscription-Token": settings.BRAVE_API_KEY
+            }
+            params = {"q": query, "count": limit}
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(url, headers=headers, params=params)
+                r.raise_for_status()
+                data = r.json()
+                results = []
+                for item in data.get("web", {}).get("results", []):
+                    results.append({
+                        "title": item.get("title", ""),
+                        "description": item.get("description", ""),
+                        "source_name": item.get("meta_url", {}).get("hostname", "Brave API"),
+                        "source_type": "web",
+                        "source_url": item.get("url", ""),
+                        "display_url": item.get("url", ""),
+                        "published_at": None,
+                        "severity": None,
+                        "cvss_score": None,
+                        "cve_ids": _extract_cve_ids(f"{item.get('title')} {item.get('description')}"),
+                        "affected_vendors": [],
+                        "tags": ["web"],
+                        "is_kev": False,
+                    })
+                return results
+        except Exception as e:
+            logger.warning(f"Brave API failed: {e}. Falling back to scraping.")
+
+    # Fallback to scraping
     params = {
         "q": query,
         "source": "web",
@@ -976,6 +1012,57 @@ def run_all_feeds_sync():
     asyncio.run(run_all_feeds())
 
 
+GITHUB_ADVISORIES_URL = "https://github.com/advisories.atom"
+
+async def fetch_github_advisories(db: Session) -> dict:
+    """Backup CVE source using GitHub's advisory feed."""
+    log = FeedLog(feed_source="GITHUB_CVE", status="running")
+    db.add(log)
+    db.commit()
+    new_count = 0
+    try:
+        feed = await asyncio.to_thread(feedparser.parse, GITHUB_ADVISORIES_URL)
+        for entry in feed.entries[:30]:
+            title = entry.get("title", "")
+            ext_key = _make_dedup_key("GITHUB", entry.get("link", entry.get("id", "")))
+            
+            if db.query(Advisory).filter(Advisory.external_id == ext_key).first():
+                continue
+                
+            summary = BeautifulSoup(entry.get("summary", ""), "html.parser").get_text(separator=" ", strip=True)
+            cve_ids = _extract_cve_ids(f"{title} {summary}")
+            
+            advisory = Advisory(
+                title=f"[GH] {title}",
+                description=_clean_description(summary),
+                severity=SeverityLevel.medium, # GitHub RSS doesn't always have clear score, default to medium
+                status=AdvisoryStatus.published,
+                source=AdvisorySource.external,
+                published_at=datetime.utcnow(),
+                external_id=ext_key,
+                source_url=entry.get("link", ""),
+                cve_ids=cve_ids,
+            )
+            
+            advisory.is_zero_day = detect_zero_day(advisory.title, advisory.description, advisory.severity, advisory.cve_ids)
+            metadata = enrich_advisory_metadata(db, advisory.title, advisory.description)
+            advisory.sector_id = metadata["sector_id"]
+            
+            db.add(advisory)
+            db.commit()
+            new_count += 1
+            
+        log.status = "success"
+        log.items_new = new_count
+        db.commit()
+        return {"source": "GITHUB_CVE", "new": new_count}
+    except Exception as e:
+        log.status = "error"
+        log.error_msg = str(e)
+        db.commit()
+        return {"source": "GITHUB_CVE", "error": str(e)}
+
+
 async def run_all_feeds(db: Session = None) -> List[dict]:
     """Run all feed ingestion jobs. Creates its own DB session if not provided."""
     close_db = False
@@ -986,6 +1073,7 @@ async def run_all_feeds(db: Session = None) -> List[dict]:
         results = await asyncio.gather(
             fetch_cisa_kev(db),
             fetch_nvd_recent(db),
+            fetch_github_advisories(db), # Added this
             fetch_rss_feeds(db),
             fetch_open_source_iocs(db),
         )

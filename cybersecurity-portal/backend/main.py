@@ -9,9 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # --- MONKEYPATCH FOR PASSLIB/BCRYPT BUG ---
+import passlib.handlers.bcrypt
 from passlib.handlers.bcrypt import bcrypt as _bcrypt
 if not hasattr(_bcrypt, "__about__"):
     _bcrypt.__about__ = type("About", (object,), {"__version__": "4.0.1"})
+
+# Completely disable the long password check that crashes on Render
+def mock_detect_wrap_bug(ident): return False
+passlib.handlers.bcrypt.detect_wrap_bug = mock_detect_wrap_bug
 # ------------------------------------------
 
 import models
@@ -44,12 +49,12 @@ def seed_database():
                 email="admin@secureeye.local",
                 username="admin",
                 full_name="SecureEye Admin",
-                hashed_password=hash_password("Admin@123"),
+                hashed_password=hash_password("admin"),
                 role=UserRole.admin,
                 is_active=True,
             )
             db.add(admin_user)
-            logger.info("Default admin user created: admin / Admin@12345")
+            logger.info("Default admin user created: admin / admin")
 
         # Default analyst
         if not db.query(User).filter(User.username == "analyst").first():

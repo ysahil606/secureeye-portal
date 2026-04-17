@@ -19,8 +19,10 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(
         (User.username == req.username) | (User.email == req.username)
     ).first()
+    
     if not user or not verify_password(req.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
 
@@ -40,7 +42,7 @@ async def refresh(req: RefreshRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
     user = db.query(User).filter(User.id == int(payload["sub"])).first()
     if not user or not user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User find failed")
     access_token = create_access_token({"sub": str(user.id)})
     new_refresh = create_refresh_token({"sub": str(user.id)})
     return TokenResponse(access_token=access_token, refresh_token=new_refresh, user=user)

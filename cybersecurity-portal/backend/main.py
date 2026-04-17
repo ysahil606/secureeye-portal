@@ -32,7 +32,7 @@ def seed_database():
     """Create default users and sectors on first run."""
     db = SessionLocal()
     try:
-        # Force recreation of admin if not present
+        # Default admin user
         if not db.query(User).filter(User.username == "admin").first():
             admin_user = User(
                 email="admin@secureeye.local",

@@ -186,6 +186,33 @@ async def send_teams_alert(advisory: Advisory, db: Session):
         db.commit()
 
 
+async def send_ntfy_alert(advisory: Advisory):
+    if not hasattr(settings, "NTFY_TOPIC") or not settings.NTFY_TOPIC:
+        return
+
+    severity_emoji = {"critical": "🚨", "high": "🔴", "medium": "🟠", "low": "🟡"}.get(
+        advisory.severity.value, "🔵"
+    )
+    
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            headers = {
+                "Title": f"SecureEye: {advisory.severity.value.upper()} Alert",
+                "Priority": "5" if advisory.severity.value == "critical" else "3",
+                "Tags": f"warning,{severity_emoji}"
+            }
+            content = f"{advisory.title}\nCVSS: {advisory.cvss_score or 'N/A'}"
+            r = await client.post(
+                f"https://ntfy.sh/{settings.NTFY_TOPIC}",
+                content=content,
+                headers=headers
+            )
+            r.raise_for_status()
+            logger.info(f"NTFY alert sent for topic: {settings.NTFY_TOPIC}")
+    except Exception as e:
+        logger.error(f"NTFY alert failed: {e}")
+
+
 async def trigger_critical_alerts(advisory: Advisory, db: Session):
     """Called when a critical advisory is published. Sends all configured alerts."""
     # Get subscribed users
@@ -197,3 +224,4 @@ async def trigger_critical_alerts(advisory: Advisory, db: Session):
     await send_email_alert(advisory, emails, db)
     await send_slack_alert(advisory, db)
     await send_teams_alert(advisory, db)
+    await send_ntfy_alert(advisory)

@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # MS Teams
     TEAMS_WEBHOOK_URL: str = ""
 
+    # NTFY
+    NTFY_TOPIC: str = ""
+
     # AI Summarization (optional)
     OPENAI_API_KEY: str = ""
     GEMINI_API_KEY: str = ""

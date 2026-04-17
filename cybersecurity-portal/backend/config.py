@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # Database
-    DATABASE_URL: str = "sqlite:///./secureeye.db"
+    # Use /tmp/ for SQLite on Render as it's a writable directory
+    DATABASE_URL: str = "sqlite:////tmp/secureeye.db"
     ALLOWED_ORIGINS: str = ""
 
     # Email (SMTP)

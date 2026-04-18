@@ -4,7 +4,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 from typing import Optional, List
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -120,11 +121,28 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="SecureEye Cybersecurity Advisory Portal",
-    description="Centralized threat intelligence platform for Wipro SecureEye team",
+    title="Secure Cybersecurity Advisory Portal",
+    description="Centralized threat intelligence platform for Personal Secure team",
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# --- GLOBAL RESILIENCE LAYER: Error Interceptor ---
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    error_log = f"{type(exc).__name__}: {str(exc)}"
+    logger.error(f"Critical System Anomaly: {error_log}")
+    
+    # Return a resilient response that the frontend can handle gracefully
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "A critical system anomaly occurred. The self-healing protocol has been initiated.",
+            "error_type": type(exc).__name__,
+            "status": "self_healing_active"
+        },
+    )
+# --------------------------------------------------
 
 # Force seeding on every boot for reliable cloud deployments
 seed_database()

@@ -16,7 +16,7 @@ export default function Login() {
     setLoading(true)
     try {
       await login(form.username, form.password)
-      toast.success('Welcome to SecureEye')
+      toast.success('Welcome to Secure')
       navigate('/dashboard')
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Login failed')
@@ -39,8 +39,8 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600/20 border border-blue-500/30 mb-4">
             <Shield className="w-8 h-8 text-blue-400" />
           </div>
-          <h1 className="text-2xl font-bold text-white">SecureEye Portal</h1>
-          <p className="text-slate-400 text-sm mt-1">Wipro Cybersecurity Advisory Platform</p>
+          <h1 className="text-2xl font-bold text-white">Secure Portal</h1>
+          <p className="text-slate-400 text-sm mt-1">Personal Cybersecurity Advisory Platform</p>
         </div>
 
         {/* Card */}
@@ -111,7 +111,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-xs text-slate-600 mt-6">
-          CONFIDENTIAL | THREAT INTELLIGENCE | SECUREEYE 2025
+          CONFIDENTIAL | THREAT INTELLIGENCE | SECURE 2025
         </p>
       </div>
     </div>

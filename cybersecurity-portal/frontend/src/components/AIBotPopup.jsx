@@ -41,7 +41,7 @@ export default function AIBotPopup() {
         >
           <Bot className="w-7 h-7" />
           <span className="absolute right-16 bg-dark-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-dark-600">
-            Ask SecureEye AI
+            Ask Secure AI
           </span>
         </button>
       )}
@@ -55,7 +55,7 @@ export default function AIBotPopup() {
               <div className="w-8 h-8 bg-blue-600/20 rounded-lg flex items-center justify-center">
                 <Bot className="w-4 h-4 text-blue-400" />
               </div>
-              <span className="font-semibold text-white text-sm">SecureEye AI Assistant</span>
+              <span className="font-semibold text-white text-sm">Secure AI Assistant</span>
             </div>
             <div className="flex items-center gap-1">
               <button onClick={() => setIsExpanded(!isExpanded)} className="p-1.5 text-slate-400 hover:text-white transition-colors">

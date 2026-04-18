@@ -109,8 +109,8 @@ export default function SmartSearch() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">Smart Search</h1>
-        <p className="text-slate-400 text-sm mt-0.5">
-          Search your advisories plus live web results. SecureEye now uses web search by default and can optionally use Google Custom Search if you configure it.
+        <p className="text-slate-400 max-w-2xl mx-auto">
+          Search your advisories plus live web results. Secure now uses web search by default and can optionally use Google Custom Search if you configure it.
         </p>
       </div>
 

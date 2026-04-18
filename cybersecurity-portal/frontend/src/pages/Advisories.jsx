@@ -89,7 +89,7 @@ export default function Advisories() {
         </select>
         <select className="input w-auto text-sm" value={filters.source} onChange={e => setFilter('source', e.target.value)}>
           <option value="">All Sources</option>
-          <option value="manual">SecureEye (Manual)</option>
+          <option value="manual">Secure (Manual)</option>
           <option value="external">Open Source (External)</option>
         </select>
         <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">

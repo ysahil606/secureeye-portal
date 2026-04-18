@@ -47,7 +47,7 @@ export default function Sidebar({ collapsed, setCollapsed }) {
         </div>
         {!collapsed && (
           <div className="overflow-hidden">
-            <div className="font-bold text-white text-sm leading-tight">SecureEye</div>
+            <div className="font-bold text-white text-sm leading-tight">Secure</div>
             <div className="text-xs text-slate-500">Advisory Portal</div>
           </div>
         )}

@@ -44,7 +44,7 @@ export function ThreatTimeline() {
             onChange={e => setFilters(f => ({ ...f, source: e.target.value }))}
           >
             <option value="">All Sources</option>
-            <option value="manual">SecureEye</option>
+            <option value="manual">Secure</option>
             <option value="external">Open Source</option>
           </select>
           <select 

@@ -53,7 +53,7 @@ export default function AdvisoryDetail() {
       const url = window.URL.createObjectURL(new Blob([r.data]))
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', `SecureEye_Bulletin_${id}.pdf`)
+      link.setAttribute('download', `Secure_Bulletin_${id}.pdf`)
       document.body.appendChild(link)
       link.click()
       link.remove()

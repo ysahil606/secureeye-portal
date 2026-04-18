@@ -88,7 +88,7 @@ export default function Dashboard() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Shield}       label="SecureEye Manual"   value={stats?.manual_count ?? 0}        color="blue" />
+        <StatCard icon={Shield}       label="Secure Manual"   value={stats?.manual_count ?? 0}        color="blue" />
         <StatCard icon={AlertTriangle} label="Critical Today"    value={stats?.critical_today ?? 0}       color="red"    pulse={stats?.critical_today > 0} />
         <StatCard icon={Shield}       label="Active Sectors"     value={stats?.active_sectors ?? 0}       color="green" />
         <StatCard icon={Bug}          label="Zero-Days Tracked"  value={stats?.zero_days_tracked ?? 0}    color="purple" />
@@ -181,15 +181,15 @@ export default function Dashboard() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-white flex items-center gap-2">
-              <Shield className="w-4 h-4 text-blue-400" /> SecureEye Advisory
+              <Shield className="w-4 h-4 text-blue-400" /> Secure Advisory
             </h2>
             <Link to="/advisories?source=manual" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
               View all →
             </Link>
           </div>
           <div className="space-y-3">
-            {stats?.secureeye_advisories?.length > 0 ? (
-              stats.secureeye_advisories.map(a => <AdvisoryCard key={a.id} advisory={a} compact />)
+            {stats?.secure_advisories?.length > 0 ? (
+              stats.secure_advisories.map(a => <AdvisoryCard key={a.id} advisory={a} compact />)
             ) : (
               <div className="card p-8 text-center text-slate-500">
                 No internal advisories yet.

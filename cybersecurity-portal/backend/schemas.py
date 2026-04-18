@@ -244,7 +244,7 @@ class DashboardStats(BaseModel):
     trending_cves: List[dict]
     severity_breakdown: dict
     recent_advisories: List[AdvisoryOut]
-    secureeye_advisories: List[AdvisoryOut]
+    secure_advisories: List[AdvisoryOut]
     open_source_advisories: List[AdvisoryOut]
     feed_last_run: Optional[datetime]
 

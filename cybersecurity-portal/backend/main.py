@@ -42,7 +42,7 @@ def seed_database():
             logger.info("Admin user password reset to 'Admin@12345' (PBKDF2)")
         else:
             admin_user = User(
-                email="admin@secureeye.local",
+                email="admin@secure.local",
                 username="admin",
                 full_name="Secure Admin",
                 hashed_password=hash_password("Admin@12345"),
@@ -55,7 +55,7 @@ def seed_database():
         # Default analyst
         if not db.query(User).filter(User.username == "analyst").first():
             db.add(User(
-                email="analyst@secureeye.local",
+                email="analyst@secure.local",
                 username="analyst",
                 full_name="Secure Analyst",
                 hashed_password=hash_password("Analyst@12345"),
@@ -66,7 +66,7 @@ def seed_database():
         # Default viewer
         if not db.query(User).filter(User.username == "viewer").first():
             db.add(User(
-                email="viewer@secureeye.local",
+                email="viewer@secure.local",
                 username="viewer",
                 full_name="Secure Viewer",
                 hashed_password=hash_password("Viewer@12345"),
@@ -102,6 +102,10 @@ async def lifespan(app: FastAPI):
     # Create tables
     models.Base.metadata.create_all(bind=engine)
     seed_database()
+
+    # Warm Start: Trigger feeds immediately in background if not recently run
+    logger.info("Initiating Warm Start: Checking threat feeds...")
+    scheduler.add_job(threat_feeds.run_all_feeds_sync, 'date', run_date=datetime.now(), id="warm_start_feeds")
 
     # Schedule feed polling
     scheduler.add_job(
@@ -153,7 +157,7 @@ allowed_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:3000",
-    "https://secureeye-portal.vercel.app",
+    "https://secure-portal.vercel.app",
 ]
 
 # Allow custom production origin from env

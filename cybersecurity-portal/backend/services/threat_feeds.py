@@ -8,6 +8,7 @@ import logging
 import re
 import zipfile
 import io
+import random
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from typing import List, Optional
@@ -739,6 +740,10 @@ async def fetch_nvd_recent(db: Session, days_back: int = 1) -> dict:
         fetched = len(cve_items)
 
         for item in cve_items:
+            # Small processing jitter to reduce CPU/IO spikes
+            if fetched > 20:
+                await asyncio.sleep(0.05)
+                
             cve = item.get("cve", {})
             cve_id = cve.get("id", "")
             ext_key = _make_dedup_key("NVD", cve_id)
@@ -1064,22 +1069,49 @@ async def fetch_github_advisories(db: Session) -> dict:
 
 
 async def run_all_feeds(db: Session = None) -> List[dict]:
-    """Run all feed ingestion jobs. Creates its own DB session if not provided."""
+    """Run all feed ingestion jobs. Each task is isolated to ensure one failure doesn't block others."""
     close_db = False
     if db is None:
         db = SessionLocal()
         close_db = True
+    
     try:
-        results = await asyncio.gather(
-            fetch_cisa_kev(db),
-            fetch_nvd_recent(db),
-            fetch_github_advisories(db), # Added this
-            fetch_rss_feeds(db),
-            fetch_open_source_iocs(db),
-        )
+        results = []
+        
+        # 1. CISA KEV
+        try:
+            results.append(await fetch_cisa_kev(db))
+        except Exception as e:
+            logger.error(f"Isolated Feed Crash (CISA_KEV): {e}")
+
+        # 2. NVD (with Jitter)
+        try:
+            await asyncio.sleep(random.uniform(2, 8))
+            results.append(await fetch_nvd_recent(db))
+        except Exception as e:
+            logger.error(f"Isolated Feed Crash (NVD_CVE): {e}")
+
+        # 3. GitHub
+        try:
+            results.append(await fetch_github_advisories(db))
+        except Exception as e:
+            logger.error(f"Isolated Feed Crash (GITHUB_CVE): {e}")
+
+        # 4. RSS Blogs
+        try:
+            results.append(await fetch_rss_feeds(db))
+        except Exception as e:
+            logger.error(f"Isolated Feed Crash (RSS_BLOGS): {e}")
+
+        # 5. Open Source IOCs
+        try:
+            results.append(await fetch_open_source_iocs(db))
+        except Exception as e:
+            logger.error(f"Isolated Feed Crash (OSINT_IOCS): {e}")
+
         backfill_external_metadata(db)
         calculate_all_sector_risk(db)
-        return list(results)
+        return results
     finally:
         if close_db:
             db.close()

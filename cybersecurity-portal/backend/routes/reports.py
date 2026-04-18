@@ -20,7 +20,7 @@ async def download_advisory_report(
     
     pdf_buffer = generate_advisory_pdf(advisory)
     
-    filename = f"SecureEye_Bulletin_{advisory_id}.pdf"
+    filename = f"Secure_Bulletin_{advisory_id}.pdf"
     return Response(
         content=pdf_buffer.getvalue(),
         media_type="application/pdf",

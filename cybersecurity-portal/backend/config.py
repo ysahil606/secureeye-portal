@@ -3,7 +3,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # App
-    APP_NAME: str = "SecureEye Cybersecurity Advisory Portal"
+    APP_NAME: str = "Secure Cybersecurity Advisory Portal"
     SECRET_KEY: str = "change-this-to-a-very-secret-key-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     # Database
     # Use /tmp/ for SQLite on Render as it's a writable directory
-    DATABASE_URL: str = "sqlite:////tmp/secureeye.db"
+    DATABASE_URL: str = "sqlite:////tmp/secure.db"
     ALLOWED_ORIGINS: str = ""
 
     # Email (SMTP)

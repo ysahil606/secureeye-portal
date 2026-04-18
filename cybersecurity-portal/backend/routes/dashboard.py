@@ -87,7 +87,7 @@ async def get_dashboard_stats(
         recent_query = advisory_query.order_by(desc(Advisory.published_at), desc(Advisory.created_at))
         
         recent = [AdvisoryOut.model_validate(a) for a in recent_query.limit(5).all()]
-        secureeye = [AdvisoryOut.model_validate(a) for a in recent_query.filter(Advisory.source == AdvisorySource.manual).limit(5).all()]
+        secure = [AdvisoryOut.model_validate(a) for a in recent_query.filter(Advisory.source == AdvisorySource.manual).limit(5).all()]
         open_source = [AdvisoryOut.model_validate(a) for a in recent_query.filter(Advisory.source == AdvisorySource.external).limit(5).all()]
 
         # Last feed run
@@ -108,7 +108,7 @@ async def get_dashboard_stats(
             trending_cves=trending_cves[:6],
             severity_breakdown=severity_breakdown,
             recent_advisories=recent,
-            secureeye_advisories=secureeye,
+            secure_advisories=secure,
             open_source_advisories=open_source,
             feed_last_run=feed_last_run,
         )

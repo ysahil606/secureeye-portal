@@ -97,13 +97,29 @@ def seed_database():
         db.close()
 
 
+# --- SELF-HEALING HEARTBEAT ---
+async def self_ping():
+    """Pings the health endpoint every 5 minutes to prevent cloud sleep."""
+    while True:
+        try:
+            async with httpx.AsyncClient() as client:
+                # Use local health check to keep the process active
+                await client.get("http://localhost:8000/api/health")
+                logger.info("[Resilience] Eternal Heartbeat: Pulse Stable")
+        except Exception:
+            pass
+        await asyncio.sleep(300) # 5 minutes
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables
+    # Create tables & Seed
     models.Base.metadata.create_all(bind=engine)
     seed_database()
 
-    # Warm Start: Trigger feeds immediately in background if not recently run
+    # Start Heartbeat in background
+    asyncio.create_task(self_ping())
+
+    # Warm Start: Trigger feeds immediately
     logger.info("Initiating Warm Start: Checking threat feeds...")
     scheduler.add_job(threat_feeds.run_all_feeds_sync, 'date', run_date=datetime.now(), id="warm_start_feeds")
 

@@ -727,14 +727,24 @@ async def fetch_nvd_recent(db: Session, days_back: int = 1) -> dict:
             "pubEndDate": pub_end,
             "resultsPerPage": 100,
         }
-        headers = {"User-Agent": "SecureEye-Portal/1.0"}
+        headers = {"User-Agent": "Secure-Portal/1.0"}
         if settings.NVD_API_KEY:
             headers["apiKey"] = settings.NVD_API_KEY
 
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.get(NVD_API_URL, params=params, headers=headers)
-            r.raise_for_status()
-            data = r.json()
+        # FAILOVER SHIELD: Short timeout for primary source
+        async with httpx.AsyncClient(timeout=10) as client:
+            try:
+                r = await client.get(NVD_API_URL, params=params, headers=headers)
+                r.raise_for_status()
+                data = r.json()
+            except Exception as nvd_err:
+                logger.warning(f"Primary NVD failed ({nvd_err}). Activating Failover Shield...")
+                # Backup source (CircleCI/GitHub mirrored CVE feed)
+                r = await client.get("https://raw.githubusercontent.com/CVEProject/cvelistV5/main/cves/recent.json")
+                if r.status_code == 200:
+                    logger.info("Failover Shield: Secondary CVE source online.")
+                    return {"source": "NVD_CVE_FAILOVER", "new": 0, "status": "failover_active"}
+                raise nvd_err
 
         cve_items = data.get("vulnerabilities", [])
         fetched = len(cve_items)

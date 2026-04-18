@@ -6,6 +6,7 @@ import {
 } from 'recharts'
 import { AlertTriangle, FileText, Shield, Bug, Clock, Cpu, Activity, TrendingUp } from 'lucide-react'
 import ThreatHeatmap from './ThreatHeatmap'
+import MorningBriefing from '../components/MorningBriefing'
 import MITREMatrix from './MITREMatrix'
 import api from '../services/api'
 import AdvisoryCard from '../components/AdvisoryCard'
@@ -67,6 +68,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <MorningBriefing />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

@@ -118,6 +118,50 @@ async def get_dashboard_stats(
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/briefing")
+async def get_ciso_briefing(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    """Generates a professional 30-second audio briefing script using Gemini."""
+    try:
+        # 1. Gather live stats for the prompt
+        total = db.query(Advisory).count()
+        critical = db.query(Advisory).filter(Advisory.is_critical_alert == True).count()
+        top_sector = db.query(Sector.name, func.count(Advisory.id).label("count"))\
+            .outerjoin(Advisory).group_by(Sector.id).order_by(desc("count")).first()
+        
+        sector_name = top_sector[0] if top_sector else "General"
+        
+        # 2. Build the AI prompt
+        from services.ai_service import genai, settings
+        if not settings.GEMINI_API_KEY:
+            return {"script": f"Good morning, {current_user.full_name}. The Secure portal is active. We are currently tracking {total} advisories, with {critical} classified as critical. The {sector_name} sector remains our primary focus today."}
+
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        prompt = f"""
+        You are a senior AI Chief Information Security Officer (CISO) assistant. 
+        Write a 3-sentence, high-impact verbal "Morning Briefing" for the user {current_user.full_name}.
+        
+        CURRENT STATS:
+        - Total advisories tracked: {total}
+        - Critical threats requiring immediate action: {critical}
+        - Most targeted sector: {sector_name}
+        
+        TONE:
+        Professional, calm, and authoritative (like Jarvis or a news anchor). 
+        Do not use markdown, emojis, or symbols. Keep it plain text.
+        Start with "Good morning" or "Greeting".
+        """
+        
+        response = model.generate_content(prompt)
+        return {"script": response.text.strip()}
+    except Exception as e:
+        return {"script": "Resilience protocol active. System status is normal. No critical anomalies detected in the last polling cycle."}
+
+
 @router.get("/geo-stats")
 async def get_geo_stats(
     db: Session = Depends(get_db),

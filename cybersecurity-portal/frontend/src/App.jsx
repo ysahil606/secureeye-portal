@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import api from './services/api'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -58,7 +60,27 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <ResilienceWrapper>
+        <AppRoutes />
+      </ResilienceWrapper>
     </AuthProvider>
   )
+}
+
+function ResilienceWrapper({ children }) {
+  const { user } = useAuth()
+  
+  useEffect(() => {
+    if (!user) return
+    
+    // Resilience Protocol: Prevent Backend Sleep
+    const pulse = setInterval(() => {
+        api.get('/health').catch(() => {})
+        console.debug('[Resilience] Browser Pulse: System Active.')
+    }, 240000) // Every 4 minutes
+    
+    return () => clearInterval(pulse)
+  }, [user])
+
+  return children
 }

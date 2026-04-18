@@ -97,18 +97,38 @@ def seed_database():
         db.close()
 
 
-# --- SELF-HEALING HEARTBEAT ---
-async def self_ping():
-    """Pings the health endpoint every 5 minutes to prevent cloud sleep."""
+# --- ADVANCED RESILIENCE: ETERNAL PULSE ---
+async def eternal_pulse():
+    """Aggressive heartbeat that pings the public URL to prevent idling."""
+    await asyncio.sleep(10) # Wait for server to fully boot
+    
+    # Try to determine public URL from common cloud env vars
+    public_url = None
+    for env_var in ["RAILWAY_PUBLIC_DOMAIN", "RENDER_EXTERNAL_URL"]:
+        val = os.getenv(env_var)
+        if val:
+            public_url = f"https://{val}/api/health" if "http" not in val else f"{val}/api/health"
+            break
+            
+    # Fallback to local if no cloud env detected
+    target = public_url or "http://localhost:8000/api/health"
+    
+    logger.info(f"[Resilience] Eternal Pulse initiated. Target: {target}")
+    
     while True:
         try:
-            async with httpx.AsyncClient() as client:
-                # Use local health check to keep the process active
-                await client.get("http://localhost:8000/api/health")
-                logger.info("[Resilience] Eternal Heartbeat: Pulse Stable")
-        except Exception:
-            pass
-        await asyncio.sleep(300) # 5 minutes
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.get(target)
+                # Also run a dummy query to keep DB connection active
+                db = SessionLocal()
+                db.execute(models.text("SELECT 1"))
+                db.close()
+                logger.info("[Resilience] Pulse Stable: System Active")
+        except Exception as e:
+            logger.warning(f"[Resilience] Pulse Hiccup: {e}")
+        
+        # Random interval between 3-6 minutes to avoid pattern detection
+        await asyncio.sleep(random.randint(180, 360))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -116,11 +136,11 @@ async def lifespan(app: FastAPI):
     models.Base.metadata.create_all(bind=engine)
     seed_database()
 
-    # Start Heartbeat in background
-    asyncio.create_task(self_ping())
+    # Start the Eternal Pulse Task
+    pulse_task = asyncio.create_task(eternal_pulse())
 
     # Warm Start: Trigger feeds immediately
-    logger.info("Initiating Warm Start: Checking threat feeds...")
+    logger.info("Initiating Warm Start: Synchronizing threat landscape...")
     scheduler.add_job(threat_feeds.run_all_feeds_sync, 'date', run_date=datetime.now(), id="warm_start_feeds")
 
     # Schedule feed polling

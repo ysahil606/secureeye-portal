@@ -38,27 +38,27 @@ def seed_database():
         
         if existing_admin:
             # Overwrite password to ensure it matches the current hashing algorithm (PBKDF2)
-            existing_admin.hashed_password = hash_password("admin123")
-            logger.info("Admin user password reset to 'admin123' (PBKDF2)")
+            existing_admin.hashed_password = hash_password("Admin@12345")
+            logger.info("Admin user password reset to 'Admin@12345' (PBKDF2)")
         else:
             admin_user = User(
                 email="admin@secureeye.local",
                 username="admin",
-                full_name="SecureEye Admin",
-                hashed_password=hash_password("admin123"),
+                full_name="Secure Admin",
+                hashed_password=hash_password("Admin@12345"),
                 role=UserRole.admin,
                 is_active=True,
             )
             db.add(admin_user)
-            logger.info("New admin user created: admin / admin123")
+            logger.info("New admin user created: admin / Admin@12345")
 
         # Default analyst
         if not db.query(User).filter(User.username == "analyst").first():
             db.add(User(
                 email="analyst@secureeye.local",
                 username="analyst",
-                full_name="SecureEye Analyst",
-                hashed_password=hash_password("analyst123"),
+                full_name="Secure Analyst",
+                hashed_password=hash_password("Analyst@12345"),
                 role=UserRole.analyst,
                 is_active=True,
             ))
@@ -68,8 +68,8 @@ def seed_database():
             db.add(User(
                 email="viewer@secureeye.local",
                 username="viewer",
-                full_name="SecureEye Viewer",
-                hashed_password=hash_password("viewer123"),
+                full_name="Secure Viewer",
+                hashed_password=hash_password("Viewer@12345"),
                 role=UserRole.viewer,
                 is_active=True,
             ))

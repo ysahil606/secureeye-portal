@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import api from '../services/api'
+import { wakeBackend } from '../services/resilience'
 
 const AuthContext = createContext(null)
 
@@ -24,6 +25,7 @@ export function AuthProvider({ children }) {
   useEffect(() => { loadUser() }, [loadUser])
 
   const login = async (username, password) => {
+    await wakeBackend()
     const res = await api.post('/auth/login', { username, password })
     const { access_token, refresh_token, user: userData } = res.data
     localStorage.setItem('access_token', access_token)

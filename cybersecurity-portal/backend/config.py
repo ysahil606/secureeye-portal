@@ -44,6 +44,8 @@ class Settings(BaseSettings):
 
     # Feed polling interval in minutes
     FEED_POLL_INTERVAL_MINUTES: int = 30
+    KEEP_ALIVE_INTERVAL_SECONDS: int = 240
+    PUBLIC_BACKEND_URL: str = ""
 
     # CVSS threshold for critical alerts
     CRITICAL_CVSS_THRESHOLD: float = 8.5

@@ -17,6 +17,8 @@ This guide explains how to deploy the SecureEye Portal for free using **Render.c
 5. **Environment Variables:**
    - `DATABASE_URL`: (Paste your Neon.tech Postgres URL or leave blank for temporary SQLite)
    - `ALLOWED_ORIGINS`: `*` (Or your Vercel URL after deployment)
+   - `PUBLIC_BACKEND_URL`: Your Render backend URL, e.g. `https://secureeye-api.onrender.com`
+   - `KEEP_ALIVE_INTERVAL_SECONDS`: `240`
    - `GEMINI_API_KEY`: `AQ.Ab8RN6K5xbM_CwtdVSv9A4ZCVClSF6k-SDZueZLXMGmB3JTAVw`
    - `SECRET_KEY`: (A random string)
 
@@ -31,3 +33,12 @@ This guide explains how to deploy the SecureEye Portal for free using **Render.c
 
 ## 4. Live Updates
 Whenever you push changes to your GitHub repository, both Render and Vercel will automatically redeploy your website with the latest code!
+
+## 5. Keep the Backend Warm
+The frontend now wakes the backend before login and sends a small `/api/health` pulse while the site is open. The backend also runs its own keep-alive pulse when `PUBLIC_BACKEND_URL` is set.
+
+For Render free services, an external uptime monitor is still recommended because a sleeping server cannot run its own timer. Add a monitor that calls:
+
+`https://your-render-service.onrender.com/api/health`
+
+Use a 5-minute interval.

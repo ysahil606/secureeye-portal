@@ -1,10 +1,10 @@
 import axios from 'axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://secure-eye.up.railway.app/api'
+export const API_URL = import.meta.env.VITE_API_URL || 'https://secure-eye.up.railway.app/api'
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 30000,
+  timeout: 45000,
 })
 
 // Set default retry settings

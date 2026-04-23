@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import api from './services/api'
+import { startBackendKeepAlive } from './services/resilience'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -16,6 +16,8 @@ import AlertLogs from './pages/AlertLogs'
 import UserManagement from './pages/UserManagement'
 import ManageSectors from './pages/ManageSectors'
 import FeedLogs from './pages/FeedLogs'
+import AdvancedSecurityCenter from './pages/AdvancedSecurityCenter'
+import DeepScan from './pages/DeepScan'
 
 function PrivateRoute({ children, adminOnly, analystOnly }) {
   const { user, loading } = useAuth()
@@ -50,6 +52,8 @@ function AppRoutes() {
         <Route path="/admin/users" element={<PrivateRoute adminOnly><UserManagement /></PrivateRoute>} />
         <Route path="/admin/sectors" element={<PrivateRoute adminOnly><ManageSectors /></PrivateRoute>} />
         <Route path="/admin/feeds" element={<FeedLogs />} />
+        <Route path="/advanced" element={<AdvancedSecurityCenter />} />
+        <Route path="/deepscan" element={<DeepScan />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -68,19 +72,9 @@ export default function App() {
 }
 
 function ResilienceWrapper({ children }) {
-  const { user } = useAuth()
-  
   useEffect(() => {
-    if (!user) return
-    
-    // Resilience Protocol: Prevent Backend Sleep
-    const pulse = setInterval(() => {
-        api.get('/health').catch(() => {})
-        console.debug('[Resilience] Browser Pulse: System Active.')
-    }, 240000) // Every 4 minutes
-    
-    return () => clearInterval(pulse)
-  }, [user])
+    return startBackendKeepAlive()
+  }, [])
 
   return children
 }

@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Shield, LayoutDashboard, FileText, Search, BarChart2,
   Bell, Settings, Users, Layers, Cpu, Clock, Bug,
-  Network, LogOut, ChevronRight, AlertTriangle, Database
+  Network, LogOut, ChevronRight, AlertTriangle, Database, Sparkles
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import clsx from 'clsx'
@@ -14,6 +14,8 @@ const navItems = [
   { to: '/timeline',    icon: Clock,            label: 'Threat Timeline', roles: ['admin','analyst','viewer'] },
   { to: '/zero-days',   icon: Bug,              label: 'Zero-Day Tracker',roles: ['admin','analyst','viewer'] },
   { to: '/iocs',        icon: Network,          label: 'IOC Management',  roles: ['admin','analyst','viewer'] },
+  { to: '/deepscan',    icon: Cpu,              label: 'DeepScan Lab',    roles: ['admin','analyst','viewer'] },
+  { to: '/advanced',    icon: Sparkles,         label: 'Advanced Center', roles: ['admin','analyst','viewer'] },
   { to: '/alerts',      icon: Bell,             label: 'Alert Logs',      roles: ['admin','analyst'] },
   { separator: true },
   { to: '/admin/users', icon: Users,            label: 'User Management', roles: ['admin'] },

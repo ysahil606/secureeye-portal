@@ -1,6 +1,8 @@
 import asyncio
 import logging
-from contextlib import asynccontextmanager
+import os
+import random
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 
 from typing import Optional, List
@@ -8,6 +10,8 @@ from fastapi import FastAPI, Depends, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import httpx
+from sqlalchemy import text
 
 import models
 from database import engine, SessionLocal, get_db
@@ -17,7 +21,7 @@ from models import User, Sector, UserRole, Advisory, AdvisoryStatus, AdvisorySou
 from schemas import AdvisoryOut
 
 # Routes
-from routes import auth, advisories, dashboard, admin, collaboration, ai, reports, apt_router, war_room, sandbox
+from routes import auth, advisories, dashboard, admin, collaboration, ai, reports, apt_router, war_room, sandbox, advanced
 from services import threat_feeds
 
 logging.basicConfig(
@@ -103,32 +107,42 @@ async def eternal_pulse():
     await asyncio.sleep(10) # Wait for server to fully boot
     
     # Try to determine public URL from common cloud env vars
-    public_url = None
-    for env_var in ["RAILWAY_PUBLIC_DOMAIN", "RENDER_EXTERNAL_URL"]:
+    public_url = settings.PUBLIC_BACKEND_URL.strip() or None
+    for env_var in ["RENDER_EXTERNAL_URL", "RAILWAY_PUBLIC_DOMAIN"]:
         val = os.getenv(env_var)
-        if val:
-            public_url = f"https://{val}/api/health" if "http" not in val else f"{val}/api/health"
+        if not public_url and val:
+            public_url = val
             break
             
     # Fallback to local if no cloud env detected
-    target = public_url or "http://localhost:8000/api/health"
+    if public_url:
+        target = public_url.rstrip("/")
+        if not target.startswith(("http://", "https://")):
+            target = f"https://{target}"
+        target = f"{target}/api/health"
+    else:
+        target = "http://localhost:8000/api/health"
     
     logger.info(f"[Resilience] Eternal Pulse initiated. Target: {target}")
     
     while True:
+        db = None
         try:
             async with httpx.AsyncClient(timeout=10) as client:
                 await client.get(target)
                 # Also run a dummy query to keep DB connection active
                 db = SessionLocal()
-                db.execute(models.text("SELECT 1"))
-                db.close()
+                db.execute(text("SELECT 1"))
                 logger.info("[Resilience] Pulse Stable: System Active")
         except Exception as e:
             logger.warning(f"[Resilience] Pulse Hiccup: {e}")
+        finally:
+            if db:
+                db.close()
         
-        # Random interval between 3-6 minutes to avoid pattern detection
-        await asyncio.sleep(random.randint(180, 360))
+        base_interval = max(settings.KEEP_ALIVE_INTERVAL_SECONDS, 60)
+        jitter = random.randint(0, 30)
+        await asyncio.sleep(base_interval + jitter)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -156,6 +170,9 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    pulse_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await pulse_task
     scheduler.shutdown(wait=False)
     logger.info("Scheduler stopped")
 
@@ -222,12 +239,14 @@ app.include_router(reports.router, prefix="/api")
 app.include_router(apt_router.router, prefix="/api")
 app.include_router(war_room.router, prefix="/api")
 app.include_router(sandbox.router, prefix="/api")
+app.include_router(advanced.router, prefix="/api")
 
 
 @app.get("/api/health")
 async def health():
     return {
         "status": "ok",
+        "database": "ok",
         "app": settings.APP_NAME,
         "version": "1.0.0",
         "timestamp": datetime.utcnow().isoformat(),

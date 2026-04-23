@@ -9,7 +9,10 @@ import socket
 import ssl
 from urllib.parse import urlparse
 from config import settings
-from services.ai_service import summarize_threat_report
+try:
+    from services.ai_service import summarize_threat_report
+except ImportError:
+    from ai_service import summarize_threat_report
 
 logger = logging.getLogger("sandbox")
 

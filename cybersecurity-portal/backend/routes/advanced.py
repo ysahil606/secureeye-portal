@@ -318,6 +318,10 @@ async def attack_surface(
     data: DomainRequest,
     current_user=Depends(get_current_active_user),
 ):
+    """
+    Performs real-world subdomain discovery and SSL analysis 
+    using HackerTarget and crt.sh (Certificate Transparency).
+    """
     domain = normalize_domain(data.domain)
     result = {
         "domain": domain,
@@ -328,24 +332,68 @@ async def attack_surface(
         "open_ports": [],
         "subdomains_checked": [],
         "risks": [],
+        "intel_source": "OSINT Aggregator"
     }
 
+    # 1. Resolve Primary IP
     try:
         result["ip"] = socket.gethostbyname(domain)
     except OSError:
-        result["risks"].append("Domain did not resolve")
-        return result
+        result["risks"].append("Primary domain did not resolve")
 
-    for port in [80, 443]:
+    # 2. Real-World Subdomain Discovery (crt.sh & HackerTarget)
+    discovered_hosts = set()
+    async with httpx.AsyncClient(timeout=15) as client:
+        # A. Check HackerTarget (Fast & Reliable)
+        try:
+            r = await client.get(f"https://api.hackertarget.com/hostsearch/?q={domain}")
+            if r.status_code == 200 and "error" not in r.text.lower():
+                for line in r.text.splitlines():
+                    if "," in line:
+                        host = line.split(",")[0]
+                        discovered_hosts.add(host)
+        except Exception as e:
+            logger.error(f"HackerTarget discovery failed: {e}")
+
+        # B. Check crt.sh if few hosts found (Deep Certificate Search)
+        if len(discovered_hosts) < 5:
+            try:
+                cr = await client.get(f"https://crt.sh/?q=%25.{domain}&output=json")
+                if cr.status_code == 200:
+                    for entry in cr.json():
+                        name = entry.get("name_value", "").lower()
+                        # Handle wildcard and multi-name certs
+                        for n in name.split('\n'):
+                            if n.endswith(domain) and "*" not in n:
+                                discovered_hosts.add(n)
+            except Exception as e:
+                logger.error(f"crt.sh discovery failed: {e}")
+
+    # 3. Verify and Resolve Discovered Subdomains (Limit to top 20 for performance)
+    for host in list(discovered_hosts)[:20]:
+        try:
+            # We don't resolve every one synchronously to keep it fast, 
+            # but we'll flag interesting ones
+            result["subdomains_checked"].append({
+                "host": host,
+                "type": "production" if any(x in host for x in ["api", "portal", "www"]) else "discovered"
+            })
+            if any(x in host for x in ["dev", "staging", "test", "vpn", "admin", "internal"]):
+                result["risks"].append(f"Potentially sensitive endpoint discovered: {host}")
+        except:
+            continue
+
+    # 4. Port & SSL Check on Primary
+    for port in [80, 443, 8080, 8443]:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(2)
+            sock.settimeout(1.5)
             if sock.connect_ex((domain, port)) == 0:
                 result["open_ports"].append(port)
 
     if 443 in result["open_ports"]:
         try:
             context = ssl.create_default_context()
-            with socket.create_connection((domain, 443), timeout=4) as sock:
+            with socket.create_connection((domain, 443), timeout=3) as sock:
                 with context.wrap_socket(sock, server_hostname=domain) as ssock:
                     cert = ssock.getpeercert()
             expires = datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z")
@@ -356,20 +404,9 @@ async def attack_surface(
                 result["risks"].append("SSL certificate expires soon")
         except Exception:
             result["risks"].append("SSL certificate could not be verified")
-    else:
-        result["risks"].append("HTTPS is not reachable")
-
-    for prefix in ["www", "api", "admin", "portal", "mail", "vpn"]:
-        subdomain = f"{prefix}.{domain}"
-        try:
-            result["subdomains_checked"].append({"host": subdomain, "ip": socket.gethostbyname(subdomain)})
-        except OSError:
-            continue
-
+    
     if 80 in result["open_ports"] and 443 not in result["open_ports"]:
-        result["risks"].append("HTTP is exposed without HTTPS")
-    if any(item["host"].startswith(("admin.", "vpn.")) for item in result["subdomains_checked"]):
-        result["risks"].append("Sensitive subdomain discovered")
+        result["risks"].append("HTTP is exposed without secure HTTPS alternative")
 
     return result
 

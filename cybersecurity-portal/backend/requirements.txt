@@ -18,6 +18,7 @@ beautifulsoup4
 slowapi
 email-validator
 google-genai
+groq
 reportlab
 psycopg2-binary
 gunicorn

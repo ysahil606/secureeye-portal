@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     ALIENVAULT_OTX_API_KEY: str = ""
     HYBRID_ANALYSIS_API_KEY: str = ""
     BREACH_DIRECTORY_API_KEY: str = ""
+    ABUSEIPDB_API_KEY: str = ""
 
     # Feed polling interval in minutes
     FEED_POLL_INTERVAL_MINUTES: int = 30

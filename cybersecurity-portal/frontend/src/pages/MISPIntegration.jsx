@@ -1,4 +1,4 @@
-import { Shield, ExternalLink, RefreshCw, Database, Terminal } from 'lucide-react'
+import { Shield, ExternalLink, RefreshCw, Database, Terminal, Network } from 'lucide-react'
 
 export default function MISPIntegration() {
   return (

@@ -6,6 +6,7 @@ import logging
 import httpx
 import re
 from google import genai
+from groq import Groq
 from bs4 import BeautifulSoup
 from config import settings
 from services.threat_feeds import search_live_sources
@@ -32,12 +33,12 @@ async def scrape_link(url: str) -> str:
 
 async def get_ai_summary(content: str) -> str:
     """
-    Generates a professional threat summary using Gemini AI or fallback logic.
+    Generates a professional threat summary using Gemini, Groq, or fallback logic.
     """
+    # 1. TRY GEMINI (Tier 1)
     if settings.GEMINI_API_KEY:
         try:
             client = genai.Client(api_key=settings.GEMINI_API_KEY)
-            
             prompt = f"""
             You are a senior cybersecurity analyst at Secure. 
             Analyze the following security content and provide a high-impact, professional summary.
@@ -54,18 +55,37 @@ async def get_ai_summary(content: str) -> str:
             CONTENT TO ANALYZE:
             {content[:15000]}
             """
-            
-            response = client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=prompt
-            )
-            
+            response = client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
             if response and response.text:
                 return response.text
         except Exception as e:
-            logger.error(f"Gemini AI (v1.5) failed: {e}. Falling back to rule-based engine.")
+            logger.warning(f"Gemini AI failed: {e}. Trying Groq...")
 
-    # FALLBACK RULE-BASED ENGINE
+    # 2. TRY GROQ (Tier 2 - Fallback)
+    if settings.GROQ_API_KEY:
+        try:
+            client = Groq(api_key=settings.GROQ_API_KEY)
+            prompt = f"""
+            You are a senior cybersecurity analyst. Analyze this and provide a high-impact summary.
+            STRUCTURE:
+            1. Title: 🛡️ SECURE EXECUTIVE SUMMARY: [CVE-ID or Threat Name]
+            2. High-level impact paragraph (3-4 sentences).
+            3. TECHNICAL ANALYSIS & IMPACT: (Bullet points)
+            4. REMEDIATION STRATEGY: (Steps)
+            
+            Plain text only, no bolding.
+            CONTENT: {content[:10000]}
+            """
+            chat_completion = client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="llama-3.3-70b-versatile",
+            )
+            if chat_completion.choices[0].message.content:
+                return chat_completion.choices[0].message.content
+        except Exception as e:
+            logger.warning(f"Groq AI failed: {e}. Using internal engine.")
+
+    # FALLBACK RULE-BASED ENGINE (Tier 3)
     raw_input = content.strip()
     
     # 1. Gather Context

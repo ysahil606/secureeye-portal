@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     # AI Summarization (optional)
     OPENAI_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
 
     # Web Search
     WEB_SEARCH_PROVIDER: str = "brave"

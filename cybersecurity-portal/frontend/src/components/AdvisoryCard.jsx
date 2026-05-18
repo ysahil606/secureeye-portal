@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, Shield, ExternalLink, Clock, Tag } from 'lucide-react'
 import SeverityBadge from './SeverityBadge'
 import { timeAgo, truncate, cvssColor, STATUS_CONFIG } from '../utils/helpers'
@@ -6,9 +6,19 @@ import clsx from 'clsx'
 
 export default function AdvisoryCard({ advisory, compact = false }) {
   const status = STATUS_CONFIG[advisory.status] || STATUS_CONFIG.pending
+  const navigate = useNavigate()
 
   return (
-    <Link to={`/advisories/${advisory.id}`}
+    <article
+      onClick={() => navigate(`/advisories/${advisory.id}`)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          navigate(`/advisories/${advisory.id}`)
+        }
+      }}
+      role="link"
+      tabIndex={0}
       className={clsx(
         'card block p-4 hover:border-blue-500/50 hover:bg-dark-700/80 transition-all group',
         advisory.is_critical_alert && 'border-red-700/60 bg-red-950/20'
@@ -106,6 +116,6 @@ export default function AdvisoryCard({ advisory, compact = false }) {
           </a>
         )}
       </div>
-    </Link>
+    </article>
   )
 }

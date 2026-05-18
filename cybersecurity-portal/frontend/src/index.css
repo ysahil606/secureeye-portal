@@ -80,3 +80,9 @@
 .animate-audio-bar-1 { animation: audio-bar 0.8s ease-in-out infinite; }
 .animate-audio-bar-2 { animation: audio-bar 0.8s ease-in-out infinite 0.2s; }
 .animate-audio-bar-3 { animation: audio-bar 0.8s ease-in-out infinite 0.4s; }
+
+/* Mobile Utilities */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+  height: calc(4rem + env(safe-area-inset-bottom));
+}

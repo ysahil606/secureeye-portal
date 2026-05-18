@@ -4,10 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from config import settings
 
 # Database connection
-db_url = settings.DATABASE_URL
-# Fix for common PostgreSQL URL issues (e.g. from Render/Heroku)
-if db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql://", 1)
+db_url = settings.sqlalchemy_database_url
 
 engine = create_engine(
     db_url,

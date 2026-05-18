@@ -2,7 +2,8 @@ import { useState, useCallback } from 'react'
 import { 
   Cpu, Globe, ShieldAlert, ShieldCheck, Terminal, Upload, 
   Link as LinkIcon, AlertTriangle, Info, Loader2, Scan, 
-  Search, ExternalLink, Activity, Server, Database, Lock
+  ExternalLink, Activity, Server, Database, Lock, Download,
+  Copy, History, Trash2
 } from 'lucide-react'
 import api from '../services/api'
 import toast from 'react-hot-toast'
@@ -15,26 +16,81 @@ export default function DeepScan() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [scanningStatus, setScanningStatus] = useState('')
+  const [sandboxMode, setSandboxMode] = useState('basic') // 'basic' or 'advanced'
+  const [scanHistory, setScanHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('deepscan_history') || '[]') } catch { return [] }
+  })
+
+  const rememberScan = useCallback((entry) => {
+    setScanHistory(prev => {
+      const next = [entry, ...prev].slice(0, 8)
+      localStorage.setItem('deepscan_history', JSON.stringify(next))
+      return next
+    })
+  }, [])
+
+  const normalizeUrl = (value) => {
+    const trimmed = value.trim()
+    if (!trimmed) return ''
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  }
+
+  const copyReport = async () => {
+    if (!result) return
+    await navigator.clipboard.writeText(JSON.stringify(result.data, null, 2))
+    toast.success('Report copied')
+  }
+
+  const downloadReport = () => {
+    if (!result) return
+    const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: 'application/json' })
+    const objectUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = `deepscan-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(objectUrl)
+  }
+
+  const clearHistory = () => {
+    localStorage.removeItem('deepscan_history')
+    setScanHistory([])
+    toast.success('Scan history cleared')
+  }
 
   const handleScanUrl = async (e) => {
     e.preventDefault()
-    if (!url) return
+    const targetUrl = normalizeUrl(url)
+    if (!targetUrl) return
+    setUrl(targetUrl)
     setLoading(true)
     setResult(null)
-    setScanningStatus('Initializing Virtual Box...')
+    setScanningStatus(sandboxMode === 'advanced' ? 'Initializing Virtual Box...' : 'Starting Static Analysis...')
     
     try {
-      // Simulation of deep scanning phases
-      setTimeout(() => setScanningStatus('Analyzing DNS & IP Reputation...'), 1000)
-      setTimeout(() => setScanningStatus('Checking SSL/TLS Certificate...'), 2000)
-      setTimeout(() => setScanningStatus('Scanning for Phishing Patterns...'), 3000)
-      setTimeout(() => setScanningStatus('Generating AI Verdict...'), 4500)
+      if (sandboxMode === 'advanced') {
+        setTimeout(() => setScanningStatus('Analyzing DNS & IP Reputation...'), 1000)
+        setTimeout(() => setScanningStatus('Checking SSL/TLS Certificate...'), 2000)
+        setTimeout(() => setScanningStatus('Scanning for Phishing Patterns...'), 3000)
+        setTimeout(() => setScanningStatus('Generating AI Verdict...'), 4500)
+      } else {
+        setTimeout(() => setScanningStatus('Fetching Domain Info...'), 1000)
+        setTimeout(() => setScanningStatus('Quick Static Check...'), 2500)
+      }
 
       const formData = new FormData()
-      formData.append('url', url)
+      formData.append('url', targetUrl)
+      formData.append('mode', sandboxMode)
       
       const res = await api.post('/sandbox/scan-url', formData)
       setResult({ type: 'url', data: res.data })
+      rememberScan({
+        type: 'url',
+        label: targetUrl,
+        verdict: res.data.verdict || 'Unknown',
+        mode: sandboxMode,
+        scannedAt: new Date().toISOString(),
+      })
     } catch (err) {
       toast.error('Scan failed: ' + (err.response?.data?.detail || err.message))
     } finally {
@@ -48,19 +104,32 @@ export default function DeepScan() {
     if (!file) return
     setLoading(true)
     setResult(null)
-    setScanningStatus('Spinning up Isolated Sandbox...')
+    setScanningStatus(sandboxMode === 'advanced' ? 'Spinning up Isolated Sandbox...' : 'Running Fast Static Scan...')
 
     try {
-      setTimeout(() => setScanningStatus('Extracting Static Metadata...'), 1000)
-      setTimeout(() => setScanningStatus('Computing SHA256 Signature...'), 2000)
-      setTimeout(() => setScanningStatus('Searching Threat Intel Databases...'), 3000)
-      setTimeout(() => setScanningStatus('Analyzing Suspicious Strings...'), 4500)
+      if (sandboxMode === 'advanced') {
+        setTimeout(() => setScanningStatus('Extracting Static Metadata...'), 1000)
+        setTimeout(() => setScanningStatus('Computing SHA256 Signature...'), 2000)
+        setTimeout(() => setScanningStatus('Searching Threat Intel Databases...'), 3000)
+        setTimeout(() => setScanningStatus('Analyzing Suspicious Strings...'), 4500)
+      } else {
+        setTimeout(() => setScanningStatus('Calculating Hashes...'), 1000)
+        setTimeout(() => setScanningStatus('Static Signature Check...'), 2500)
+      }
 
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('mode', sandboxMode)
       
       const res = await api.post('/sandbox/scan-file', formData)
       setResult({ type: 'file', data: res.data })
+      rememberScan({
+        type: 'file',
+        label: file.name,
+        verdict: res.data.local_analysis?.verdict || 'Unknown',
+        mode: sandboxMode,
+        scannedAt: new Date().toISOString(),
+      })
     } catch (err) {
       toast.error('File scan failed')
     } finally {
@@ -79,8 +148,32 @@ export default function DeepScan() {
             </div>
             DeepScan Lab
           </h1>
-          <p className="text-slate-400 mt-1">Advanced multi-engine sandbox for suspicious links and files.</p>
+              <p className="text-slate-400 mt-1">Advanced multi-engine sandbox for suspicious links and files.</p>
         </div>
+      </div>
+
+      {/* Sandbox Mode Selector */}
+      <div className="flex p-1 bg-dark-800 border border-dark-600 rounded-xl w-full sm:w-fit">
+        <button
+          onClick={() => setSandboxMode('basic')}
+          className={clsx(
+            "flex-1 sm:flex-none px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
+            sandboxMode === 'basic' ? "bg-blue-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300"
+          )}
+        >
+          <Activity className="w-4 h-4" />
+          Basic Sandbox
+        </button>
+        <button
+          onClick={() => setSandboxMode('advanced')}
+          className={clsx(
+            "flex-1 sm:flex-none px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
+            sandboxMode === 'advanced' ? "bg-purple-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300"
+          )}
+        >
+          <Server className="w-4 h-4" />
+          Advanced Sandbox
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -146,6 +239,12 @@ export default function DeepScan() {
                         file ? "border-blue-500/50 bg-blue-500/5" : "border-dark-500 hover:border-blue-500/50 hover:bg-blue-500/5"
                       )}
                       onClick={() => document.getElementById('file-upload').click()}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        const dropped = e.dataTransfer.files?.[0]
+                        if (dropped) setFile(dropped)
+                      }}
                     >
                       <input
                         id="file-upload"
@@ -190,7 +289,7 @@ export default function DeepScan() {
           <div className="bg-dark-800/50 border border-dark-600 rounded-xl p-5 space-y-4">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Info className="w-4 h-4 text-blue-400" />
-              How it works
+              Scan checklist
             </h3>
             <ul className="space-y-3 text-xs text-slate-400">
               <li className="flex gap-2">
@@ -207,6 +306,35 @@ export default function DeepScan() {
               </li>
             </ul>
           </div>
+
+          {scanHistory.length > 0 && (
+            <div className="bg-dark-800/50 border border-dark-600 rounded-xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <History className="w-4 h-4 text-cyan-400" />
+                  Recent scans
+                </h3>
+                <button onClick={clearHistory} className="text-slate-500 hover:text-red-400" title="Clear history">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                {scanHistory.map((item, index) => (
+                  <button
+                    key={`${item.scannedAt}-${index}`}
+                    onClick={() => item.type === 'url' ? setUrl(item.label) : null}
+                    className="w-full rounded-lg border border-dark-600 bg-dark-900/60 p-3 text-left transition-colors hover:border-blue-500/40"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="truncate text-xs font-medium text-slate-200">{item.label}</span>
+                      <span className="text-[10px] uppercase text-slate-500">{item.mode}</span>
+                    </div>
+                    <div className="mt-1 text-[10px] text-slate-500">{item.verdict}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Console / Result Section */}
@@ -222,6 +350,16 @@ export default function DeepScan() {
                 <span className="text-[10px] font-mono text-slate-500 ml-4">VIRTUAL_BOX_v2.0 // DEEP_SCAN_PRO</span>
               </div>
               <div className="flex items-center gap-3">
+                {result && !loading && (
+                  <>
+                    <button onClick={copyReport} className="text-slate-500 hover:text-blue-400" title="Copy JSON report">
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    <button onClick={downloadReport} className="text-slate-500 hover:text-blue-400" title="Download JSON report">
+                      <Download className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
                 <div className="flex items-center gap-1.5 text-[10px] font-mono text-green-500">
                   <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                   SECURE_INSTANCE: RUNNING
@@ -254,7 +392,7 @@ export default function DeepScan() {
                         ? "bg-yellow-500/10 border-yellow-500 text-yellow-500"
                         : "bg-green-500/10 border-green-500 text-green-500"
                   )}>
-                    {result.data.verdict || result.data.local_analysis?.verdict}
+                    {result.data.verdict || result.data.local_analysis?.verdict || 'Review Required'}
                   </div>
 
                   {/* AI Report */}
@@ -292,7 +430,7 @@ export default function DeepScan() {
                             <div className="flex-1 h-1.5 bg-dark-600 rounded-full overflow-hidden">
                               <div className="h-full bg-blue-500" style={{ width: `${result.data.phishing_score}%` }} />
                             </div>
-                            <span className="text-white font-bold">{result.data.phishing_score}/100</span>
+                            <span className="text-white font-bold">{result.data.phishing_score ?? 0}/100</span>
                           </div>
                         </div>
                       </>
@@ -322,17 +460,17 @@ export default function DeepScan() {
                       {result.type === 'url' ? 'Detected Suspicious Patterns' : 'Suspicious Features / Strings'}
                     </h4>
                     <div className="space-y-2">
-                      {(result.type === 'url' ? result.data.suspicious_patterns : result.data.local_analysis.suspicious_features).map((p, i) => (
+                      {(result.type === 'url' ? (result.data.suspicious_patterns || []) : (result.data.local_analysis?.suspicious_features || [])).map((p, i) => (
                         <div key={i} className="flex items-center gap-2 text-xs text-yellow-500/80">
                           <AlertTriangle className="w-3 h-3" />
                           <span>{p}</span>
                         </div>
                       ))}
-                      {result.type === 'file' && result.data.local_analysis.strings_sample.length > 0 && (
+                      {result.type === 'file' && (result.data.local_analysis?.strings_sample || []).length > 0 && (
                         <div className="mt-4 p-3 bg-dark-900 rounded-lg border border-dark-600">
                            <p className="text-[10px] text-slate-500 mb-2 uppercase">Strings Extraction (ASCII)</p>
                            <div className="flex flex-wrap gap-2">
-                             {result.data.local_analysis.strings_sample.map((s, i) => (
+                             {(result.data.local_analysis?.strings_sample || []).map((s, i) => (
                                <span key={i} className="text-[10px] bg-dark-600 px-1.5 py-0.5 rounded text-slate-300">{s}</span>
                              ))}
                            </div>

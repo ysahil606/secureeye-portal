@@ -70,7 +70,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <MorningBriefing />
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Security Dashboard</h1>
           <p className="text-slate-400 text-sm mt-0.5">
@@ -82,14 +82,14 @@ export default function Dashboard() {
         </div>
         {isAnalyst && (
           <button onClick={handleTriggerFeed}
-            className="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 px-4 py-2 rounded-lg text-sm transition-colors">
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-blue-500/30 bg-blue-600/20 px-4 py-2 text-sm text-blue-400 transition-colors hover:bg-blue-600/40 sm:w-auto">
             <Cpu className="w-4 h-4" /> Run Feeds Now
           </button>
         )}
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={Shield}       label="Secure Manual"   value={stats?.manual_count ?? 0}        color="blue" />
         <StatCard icon={AlertTriangle} label="Critical Today"    value={stats?.critical_today ?? 0}       color="red"    pulse={stats?.critical_today > 0} />
         <StatCard icon={Shield}       label="Active Sectors"     value={stats?.active_sectors ?? 0}       color="green" />

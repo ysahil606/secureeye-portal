@@ -1,0 +1,36 @@
+# --- Backend ---
+backend/venv/
+backend/.env
+backend/__pycache__/
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+backend/uploads/evidence/*
+!backend/uploads/evidence/.gitkeep
+
+# --- Frontend ---
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/android/build/
+frontend/capacitor.config.json
+
+# --- OS/Tools ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+*.docx
+*.pptx
+*.pyc
+check_db.py
+test_ai_service.py
+list_models.py
+sync_feeds.py
+test_ai_new.py
+test_otx_sync.py
+list_models_new.py
+test_misp_feeds.py

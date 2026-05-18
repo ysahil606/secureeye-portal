@@ -3,7 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle, XCircle, Edit, Trash2,
   MessageSquare, Send, Shield, ExternalLink, AlertTriangle,
-  Tag, Clock, User, Info, Activity, Zap, FileText
+  Tag, Clock, User, Info, Activity, Zap, FileText,
+  Terminal, BarChart3, ChevronRight, Copy, TerminalSquare, Loader2
 } from 'lucide-react'
 import api from '../services/api'
 import SeverityBadge from '../components/SeverityBadge'
@@ -12,6 +13,44 @@ import WarRoom from './WarRoom'
 import { useAuth } from '../context/AuthContext'
 import { formatDateTime, cvssColor, STATUS_CONFIG } from '../utils/helpers'
 import toast from 'react-hot-toast'
+import clsx from 'clsx'
+
+function PlaybookModal({ playbook, onClose }) {
+  const [copied, setCopied] = useState(false)
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(playbook)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+    toast.success('Copied to clipboard')
+  }
+
+  return (
+    <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
+      <div className="bg-dark-800 border border-dark-600 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="p-4 border-b border-dark-600 flex items-center justify-between bg-dark-700/50">
+          <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase tracking-widest text-xs">
+            <TerminalSquare className="w-4 h-4" /> AI-Generated Mitigation Playbook
+          </div>
+          <button onClick={onClose} className="text-slate-500 hover:text-white"><XCircle className="w-5 h-5" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="bg-black rounded-xl p-4 font-mono text-xs text-emerald-500 overflow-x-auto border border-emerald-500/20 max-h-[400px] custom-scrollbar">
+            <pre className="whitespace-pre-wrap">{playbook}</pre>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={copyToClipboard} className="flex-1 btn-primary py-3 flex items-center justify-center gap-2">
+              {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {copied ? 'Copied!' : 'Copy Commands'}
+            </button>
+            <button onClick={onClose} className="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-bold py-3 rounded-xl transition-all">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function AdvisoryDetail() {
   const { id } = useParams()
@@ -24,6 +63,10 @@ export default function AdvisoryDetail() {
   const [submitting, setSubmitting] = useState(false)
   const [isDescExpanded, setIsDescExpanded] = useState(false)
   const [activeTab, setActiveTab] = useState('intel') // 'intel' or 'warroom'
+  const [playbook, setPlaybook] = useState(null)
+  const [generatingPlaybook, setGeneratingPlaybook] = useState(false)
+  const [prediction, setPrediction] = useState(null)
+  const [generatingPrediction, setGeneratingPrediction] = useState(false)
 
   const load = async () => {
     try {
@@ -38,6 +81,30 @@ export default function AdvisoryDetail() {
   }
 
   useEffect(() => { load() }, [id])
+
+  const generatePlaybook = async () => {
+    setGeneratingPlaybook(true)
+    try {
+      const r = await api.post(`/ai/generate-playbook/${id}`)
+      setPlaybook(r.data.playbook)
+    } catch { toast.error('Failed to generate playbook') }
+    finally { setGeneratingPlaybook(false) }
+  }
+
+  const generatePrediction = async () => {
+    setGeneratingPrediction(true)
+    try {
+      const r = await api.post(`/ai/predict-impact/${id}`)
+      setPrediction(r.data.prediction)
+    } catch { toast.error('Failed to generate forecast') }
+    finally { setGeneratingPrediction(false) }
+  }
+
+  useEffect(() => {
+    if (advisory && !prediction && activeTab === 'intel') {
+      generatePrediction()
+    }
+  }, [advisory, activeTab])
 
   const publish = async () => {
     try {
@@ -248,15 +315,43 @@ export default function AdvisoryDetail() {
                 </div>
               )}
 
-              {/* Remediation Block */}
-              {advisory.mitigation && (
-                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5">
+              {/* AI Remediation & Playbook Block */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5 flex flex-col h-full">
                   <h3 className="text-[11px] uppercase tracking-widest text-emerald-400 font-black mb-3 flex items-center gap-2">
                     <CheckCircle className="w-3.5 h-3.5" /> Remediation Strategy
                   </h3>
-                  <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">{advisory.mitigation}</div>
+                  <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-line flex-1 mb-4">{advisory.mitigation}</div>
+                  <button 
+                    onClick={generatePlaybook}
+                    disabled={generatingPlaybook}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white text-xs font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-900/10"
+                  >
+                    {generatingPlaybook ? <Loader2 className="w-4 h-4 animate-spin" /> : <Terminal className="w-4 h-4" />}
+                    Generate Automated Playbook
+                  </button>
                 </div>
-              )}
+
+                <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-5 flex flex-col h-full">
+                  <h3 className="text-[11px] uppercase tracking-widest text-blue-400 font-black mb-3 flex items-center gap-2">
+                    <BarChart3 className="w-3.5 h-3.5" /> AI Threat Forecast
+                  </h3>
+                  {generatingPrediction ? (
+                    <div className="flex-1 flex flex-col items-center justify-center gap-2 py-6">
+                      <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                      <p className="text-[10px] text-slate-500 animate-pulse">Forecasting impact clusters...</p>
+                    </div>
+                  ) : prediction ? (
+                    <div className="text-slate-300 text-sm leading-relaxed italic border-l-2 border-blue-500/30 pl-3">
+                      {prediction}
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center">
+                      <button onClick={generatePrediction} className="text-xs text-blue-400 hover:underline">Recalculate Forecast</button>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* Relationship Graph */}
               {ThreatGraph && <ThreatGraph advisoryId={id} />}
@@ -325,6 +420,8 @@ export default function AdvisoryDetail() {
       ) : (
         <WarRoom advisoryId={id} />
       )}
+
+      {playbook && <PlaybookModal playbook={playbook} onClose={() => setPlaybook(null)} />}
     </div>
   )
 }

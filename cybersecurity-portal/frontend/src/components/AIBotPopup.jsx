@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { Bot, Send, X, Loader2, Maximize2, Minimize2 } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Bot, Send, X, Loader2, Maximize2, Minimize2, Mic, MicOff, Volume2, VolumeX } from 'lucide-react'
 import api from '../services/api'
 import toast from 'react-hot-toast'
+import clsx from 'clsx'
 
 export default function AIBotPopup() {
   const [isOpen, setIsOpen] = useState(false)
@@ -9,13 +10,73 @@ export default function AIBotPopup() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [summary, setSummary] = useState('')
+  const [isListening, setIsListening] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  
+  const recognitionRef = useRef(null)
+  const synthRef = useRef(window.speechSynthesis)
+
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition
+      recognitionRef.current = new SpeechRecognition()
+      recognitionRef.current.continuous = false
+      recognitionRef.current.interimResults = false
+      recognitionRef.current.lang = 'en-US'
+
+      recognitionRef.current.onresult = (event) => {
+        const transcript = event.results[0][0].transcript
+        setInput(transcript)
+        setIsListening(false)
+      }
+
+      recognitionRef.current.onerror = () => {
+        setIsListening(false)
+        toast.error('Voice recognition failed')
+      }
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false)
+      }
+    }
+  }, [])
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop()
+    } else {
+      if (!recognitionRef.current) {
+        toast.error('Speech recognition not supported in this browser')
+        return
+      }
+      setInput('')
+      recognitionRef.current.start()
+      setIsListening(true)
+    }
+  }
+
+  const toggleSpeaking = () => {
+    if (isSpeaking) {
+      synthRef.current.cancel()
+      setIsSpeaking(false)
+    } else if (summary) {
+      const utterance = new SpeechSynthesisUtterance(summary)
+      utterance.onend = () => setIsSpeaking(false)
+      utterance.onerror = () => setIsSpeaking(false)
+      setIsSpeaking(true)
+      synthRef.current.speak(utterance)
+    }
+  }
 
   const handleAnalyze = async (e) => {
-    e.preventDefault()
+    if (e) e.preventDefault()
     if (!input.trim()) return
 
     setLoading(true)
     setSummary('')
+    synthRef.current.cancel()
+    setIsSpeaking(false)
+    
     try {
       const isUrl = input.startsWith('http')
       const payload = isUrl ? { url: input } : { text: input }
@@ -32,7 +93,7 @@ export default function AIBotPopup() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+    <div className="fixed bottom-20 right-4 z-50 flex max-w-[calc(100vw-2rem)] flex-col items-end sm:right-6 lg:bottom-6">
       {/* Trigger Button */}
       {!isOpen && (
         <button
@@ -48,7 +109,7 @@ export default function AIBotPopup() {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className={`bg-dark-800 border border-dark-600 rounded-2xl shadow-2xl transition-all duration-300 flex flex-col overflow-hidden ${isExpanded ? 'w-[500px] h-[600px]' : 'w-80 h-96'}`}>
+        <div className={`bg-dark-800 border border-dark-600 rounded-2xl shadow-2xl transition-all duration-300 flex max-w-[calc(100vw-2rem)] flex-col overflow-hidden ${isExpanded ? 'h-[min(600px,calc(100vh-2rem))] w-[min(500px,calc(100vw-2rem))]' : 'h-96 w-[min(20rem,calc(100vw-2rem))]'}`}>
           {/* Header */}
           <div className="bg-dark-700 px-4 py-3 flex items-center justify-between border-b border-dark-600">
             <div className="flex items-center gap-2">
@@ -58,10 +119,19 @@ export default function AIBotPopup() {
               <span className="font-semibold text-white text-sm">Secure AI Assistant</span>
             </div>
             <div className="flex items-center gap-1">
+              {summary && (
+                <button 
+                  onClick={toggleSpeaking}
+                  className={clsx("p-1.5 transition-colors", isSpeaking ? "text-blue-400" : "text-slate-400 hover:text-white")}
+                  title={isSpeaking ? "Stop Speaking" : "Read Aloud"}
+                >
+                  {isSpeaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                </button>
+              )}
               <button onClick={() => setIsExpanded(!isExpanded)} className="p-1.5 text-slate-400 hover:text-white transition-colors">
                 {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
               </button>
-              <button onClick={() => { setIsOpen(false); setSummary(''); setInput('') }} className="p-1.5 text-slate-400 hover:text-red-400 transition-colors">
+              <button onClick={() => { setIsOpen(false); setSummary(''); setInput(''); synthRef.current.cancel(); setIsSpeaking(false); }} className="p-1.5 text-slate-400 hover:text-red-400 transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -75,7 +145,7 @@ export default function AIBotPopup() {
                   <Bot className="w-6 h-6 text-slate-500" />
                 </div>
                 <p className="text-slate-400 text-sm px-6">
-                  Paste an advisory link, CVE ID, or vulnerability text to get a 20-25 line AI summary.
+                  Paste an advisory link, CVE ID, or use <Mic className="w-3 h-3 inline mb-0.5" /> to speak.
                 </p>
               </div>
             )}
@@ -102,18 +172,30 @@ export default function AIBotPopup() {
 
           {/* Footer Input */}
           <form onSubmit={handleAnalyze} className="p-4 bg-dark-700/50 border-t border-dark-600">
-            <div className="relative">
-              <input
-                className="w-full bg-dark-900 border border-dark-600 rounded-xl pl-4 pr-10 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
-                placeholder="Enter link or text..."
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                disabled={loading}
-              />
+            <div className="relative flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  className="w-full bg-dark-900 border border-dark-600 rounded-xl pl-4 pr-10 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  placeholder={isListening ? "Listening..." : "Enter link or text..."}
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  className={clsx(
+                    "absolute right-2 top-1/2 -translate-y-1/2 p-1.5 transition-colors",
+                    isListening ? "text-red-500 animate-pulse" : "text-slate-500 hover:text-blue-400"
+                  )}
+                >
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </button>
+              </div>
               <button
                 type="submit"
                 disabled={loading || !input.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-blue-500 hover:text-blue-400 disabled:opacity-30 transition-colors"
+                className="bg-blue-600 hover:bg-blue-500 text-white p-2.5 rounded-xl disabled:opacity-30 transition-colors shrink-0"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -124,3 +206,4 @@ export default function AIBotPopup() {
     </div>
   )
 }
+

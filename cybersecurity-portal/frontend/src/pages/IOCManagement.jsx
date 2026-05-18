@@ -152,7 +152,7 @@ export default function IOCManagement() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <Network className="w-6 h-6 text-cyan-400" /> IOC Management
@@ -161,7 +161,7 @@ export default function IOCManagement() {
         </div>
         {isAnalyst && (
           <button onClick={() => setShowForm(v => !v)}
-            className="btn-primary flex items-center gap-2 text-sm">
+            className="btn-primary flex w-full items-center justify-center gap-2 text-sm sm:w-auto">
             <Plus className="w-4 h-4" /> Add IOC
           </button>
         )}
@@ -191,15 +191,15 @@ export default function IOCManagement() {
         </div>
       )}
 
-      <div className="card p-4 flex flex-wrap gap-3 items-center">
-        <form onSubmit={handleSearch} className="flex gap-2 flex-1 min-w-[200px]">
+      <div className="card p-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <form onSubmit={handleSearch} className="flex min-w-[200px] flex-1 flex-col gap-2 sm:flex-row">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <input className="input pl-9 text-sm" placeholder="Search IOC values or run live IOC lookup..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <button type="submit" className="btn-primary text-sm">Search</button>
         </form>
-        <select className="input w-auto text-sm" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+        <select className="input w-full text-sm sm:w-auto" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
           <option value="">All Types</option>
           <option value="ip">IP Address</option>
           <option value="domain">Domain</option>
@@ -246,8 +246,43 @@ export default function IOCManagement() {
             {localIocs.length === 0 ? (
               <div className="card p-12 text-center text-slate-500">No IOCs found.</div>
             ) : (
-              <div className="card overflow-hidden">
-                <div className="overflow-x-auto">
+              <>
+                <div className="space-y-3 md:hidden">
+                  {localIocs.map(ioc => (
+                    <div key={ioc.id} className="card p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-2 flex items-center gap-2">
+                            <TypeBadge type={ioc.ioc_type} />
+                            <span className="text-xs text-slate-500">{ioc.source || 'Unknown source'}</span>
+                          </div>
+                          <div className="break-all font-mono text-sm text-slate-200">{ioc.value}</div>
+                          <div className="mt-2 text-xs text-slate-500">{formatDateTime(ioc.first_seen)}</div>
+                          {(ioc.tags || []).length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-1">
+                              {(ioc.tags || []).map((t, i) => (
+                                <span key={i} className="rounded border border-dark-600 bg-dark-800 px-1.5 py-0.5 text-xs text-slate-400">{t}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {ioc.ioc_type === 'hash' && (
+                            <button onClick={() => checkSandbox(ioc.value)} className="p-1 text-blue-400 transition-colors hover:text-blue-300" title="Sandbox Quick Scan">
+                              <Radar className="h-4 w-4" />
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button onClick={() => deleteIOC(ioc.id)} className="p-1 text-slate-500 transition-colors hover:text-red-400">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="hidden overflow-x-auto md:block">
                   <table className="w-full text-sm">
                     <thead className="bg-dark-800 border-b border-dark-600">
                       <tr>
@@ -289,7 +324,7 @@ export default function IOCManagement() {
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </>
             )}
           </section>
         </div>

@@ -1,11 +1,11 @@
 """
-Secure Intelligence AI - Version 10.0 (High-Impact Summary Engine)
+Secure Intelligence AI - Version 11.0 (High-Impact Summary Engine)
 Generates concise technical paragraph summaries for advisories and IOCs.
 """
 import logging
 import httpx
 import re
-import google.generativeai as genai
+from google import genai
 from bs4 import BeautifulSoup
 from config import settings
 from services.threat_feeds import search_live_sources
@@ -36,9 +36,7 @@ async def get_ai_summary(content: str) -> str:
     """
     if settings.GEMINI_API_KEY:
         try:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            # Trying 2.5-flash which appeared in the model list
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            client = genai.Client(api_key=settings.GEMINI_API_KEY)
             
             prompt = f"""
             You are a senior cybersecurity analyst at Secure. 
@@ -57,11 +55,15 @@ async def get_ai_summary(content: str) -> str:
             {content[:15000]}
             """
             
-            response = model.generate_content(prompt)
+            response = client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt
+            )
+            
             if response and response.text:
                 return response.text
         except Exception as e:
-            logger.error(f"Gemini AI failed: {e}. Falling back to rule-based engine.")
+            logger.error(f"Gemini AI (v1.5) failed: {e}. Falling back to rule-based engine.")
 
     # FALLBACK RULE-BASED ENGINE
     raw_input = content.strip()
@@ -147,9 +149,11 @@ async def summarize_threat_report(prompt: str) -> str:
         return "Manual verification recommended. No AI API key configured."
     
     try:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        response = model.generate_content(prompt)
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt
+        )
         if response and response.text:
             return response.text.strip()
     except Exception as e:

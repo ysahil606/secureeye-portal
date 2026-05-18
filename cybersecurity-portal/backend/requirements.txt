@@ -17,7 +17,7 @@ bleach
 beautifulsoup4
 slowapi
 email-validator
-google-generativeai
+google-genai
 reportlab
 psycopg2-binary
 gunicorn

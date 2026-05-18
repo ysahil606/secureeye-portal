@@ -1,6 +1,19 @@
 import axios from 'axios'
 
-export const API_URL = import.meta.env.VITE_API_URL || 'https://secure-eye.up.railway.app/api'
+// Prioritize environment variable, then current hostname, then fallback to local dev port
+const getBaseUrl = () => {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL
+  
+  const { hostname, protocol } = window.location
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return `${protocol}//${hostname}:8000/api`
+  }
+  
+  // Fallback production URL if needed
+  return 'https://secure-eye.up.railway.app/api'
+}
+
+export const API_URL = getBaseUrl()
 
 const api = axios.create({
   baseURL: API_URL,

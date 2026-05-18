@@ -21,7 +21,7 @@ from models import User, Sector, UserRole, Advisory, AdvisoryStatus, AdvisorySou
 from schemas import AdvisoryOut
 
 # Routes
-from routes import auth, advisories, dashboard, admin, collaboration, ai, reports, apt_router, war_room, sandbox, advanced
+from routes import auth, advisories, dashboard, admin, collaboration, ai, reports, apt_router, war_room, sandbox, advanced, darkweb
 from services import threat_feeds
 
 logging.basicConfig(
@@ -153,9 +153,9 @@ async def lifespan(app: FastAPI):
     # Start the Eternal Pulse Task
     pulse_task = asyncio.create_task(eternal_pulse())
 
-    # Warm Start: Trigger feeds immediately
-    logger.info("Initiating Warm Start: Synchronizing threat landscape...")
-    scheduler.add_job(threat_feeds.run_all_feeds_sync, 'date', run_date=datetime.now(), id="warm_start_feeds")
+    if settings.WARM_START_FEEDS_ENABLED:
+        logger.info("Initiating Warm Start: Synchronizing threat landscape...")
+        scheduler.add_job(threat_feeds.run_all_feeds_sync, "date", run_date=datetime.now(), id="warm_start_feeds")
 
     # Schedule feed polling
     scheduler.add_job(
@@ -201,9 +201,6 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 # --------------------------------------------------
 
-# Force seeding on every boot for reliable cloud deployments
-seed_database()
-
 # CORS — allow React dev server and production origins
 allowed_origins = [
     "http://localhost:3000",
@@ -240,6 +237,7 @@ app.include_router(apt_router.router, prefix="/api")
 app.include_router(war_room.router, prefix="/api")
 app.include_router(sandbox.router, prefix="/api")
 app.include_router(advanced.router, prefix="/api")
+app.include_router(darkweb.router, prefix="/api")
 
 
 @app.get("/api/health")

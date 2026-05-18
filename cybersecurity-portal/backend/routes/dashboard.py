@@ -138,8 +138,7 @@ async def get_ciso_briefing(
         if not settings.GEMINI_API_KEY:
             return {"script": f"Good morning, {current_user.full_name}. The Secure portal is active. We are currently tracking {total} advisories, with {critical} classified as critical. The {sector_name} sector remains our primary focus today."}
 
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
         
         prompt = f"""
         You are a senior AI Chief Information Security Officer (CISO) assistant. 
@@ -156,9 +155,13 @@ async def get_ciso_briefing(
         Start with "Good morning" or "Greeting".
         """
         
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt
+        )
         return {"script": response.text.strip()}
     except Exception as e:
+        print(f"BRIEFING ERROR: {e}")
         return {"script": "Resilience protocol active. System status is normal. No critical anomalies detected in the last polling cycle."}
 
 

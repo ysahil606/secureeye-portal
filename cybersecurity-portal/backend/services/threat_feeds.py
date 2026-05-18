@@ -9,6 +9,7 @@ import re
 import zipfile
 import io
 import random
+import csv
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from typing import List, Optional
@@ -46,8 +47,10 @@ GOOGLE_CUSTOM_SEARCH_URL = "https://www.googleapis.com/customsearch/v1"
 BRAVE_SEARCH_URL = "https://search.brave.com/search"
 
 URLHAUS_CSV = "https://urlhaus.abuse.ch/downloads/csv/"
-THREATFOX_CSV = "https://threatfox.abuse.ch/export/csv/recent/"
+THREATFOX_EXPORT_URL = "https://threatfox-api.abuse.ch/v2/files/exports/{auth_key}/recent.csv.zip"
 FEODO_TRACKER_JSON = "https://feodotracker.abuse.ch/downloads/ipblocklist.json"
+CIRCL_MISP_FEED_URL = "https://www.circl.lu/doc/misp/feed-osint/manifest.json"
+OTX_API_URL = "https://otx.alienvault.com/api/v1/pulses/subscribed"
 
 CVE_REGEX = re.compile(r"\bCVE-\d{4}-\d{4,7}\b", flags=re.IGNORECASE)
 
@@ -899,8 +902,23 @@ async def fetch_rss_feeds(db: Session) -> dict:
 
 
 URLHAUS_CSV = "https://urlhaus.abuse.ch/downloads/csv/"
-THREATFOX_CSV = "https://threatfox.abuse.ch/export/csv/recent/"
+THREATFOX_EXPORT_URL = "https://threatfox-api.abuse.ch/v2/files/exports/{auth_key}/recent.csv.zip"
 FEODO_TRACKER_JSON = "https://feodotracker.abuse.ch/downloads/ipblocklist.json"
+CIRCL_MISP_FEED_URL = "https://www.circl.lu/doc/misp/feed-osint/manifest.json"
+OTX_API_URL = "https://otx.alienvault.com/api/v1/pulses/subscribed"
+
+
+def _read_csv_rows(text: str):
+    return csv.reader(line for line in text.splitlines() if line.strip() and not line.startswith("#"))
+
+
+def _decode_zip_or_text(response: httpx.Response) -> str:
+    if response.headers.get("Content-Type") == "application/zip" or response.content[:2] == b"PK":
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            csv_filename = archive.namelist()[0]
+            with archive.open(csv_filename) as handle:
+                return handle.read().decode("utf-8", errors="replace")
+    return response.text
 
 async def fetch_open_source_iocs(db: Session) -> dict:
     """Fetch IOCs from Abuse.ch using reliable CSV/JSON exports"""
@@ -913,24 +931,12 @@ async def fetch_open_source_iocs(db: Session) -> dict:
     headers = {"User-Agent": "SecureEye-Portal/1.0"}
     
     async with httpx.AsyncClient(timeout=30, headers=headers, follow_redirects=True) as client:
-        # 1. URLHaus (CSV in ZIP)
+        # 1. URLHaus free CSV export. No key required.
         try:
             r = await client.get(URLHAUS_CSV)
             if r.status_code == 200:
-                # Handle ZIP
-                if r.headers.get("Content-Type") == "application/zip" or r.content[:2] == b'PK':
-                    with zipfile.ZipFile(io.BytesIO(r.content)) as z:
-                        # Extract the first file in the zip
-                        csv_filename = z.namelist()[0]
-                        with z.open(csv_filename) as f:
-                            csv_text = f.read().decode("utf-8")
-                else:
-                    csv_text = r.text
-
-                lines = csv_text.splitlines()
-                for line in lines:
-                    if line.startswith("#") or not line.strip(): continue
-                    parts = line.replace('"', '').split(",")
+                csv_text = _decode_zip_or_text(r)
+                for parts in _read_csv_rows(csv_text):
                     if len(parts) > 2:
                         val = parts[2].strip() # URL
                         if db.query(IOC).filter(IOC.value == val).first():
@@ -953,17 +959,20 @@ async def fetch_open_source_iocs(db: Session) -> dict:
         except Exception as e:
             logger.error(f"URLHaus CSV fetch failed: {e}")
 
-        # 2. ThreatFox (CSV)
-        try:
-            r = await client.get(THREATFOX_CSV)
-            if r.status_code == 200:
-                lines = r.text.splitlines()
-                current_new = 0
-                for line in lines:
-                    if line.startswith("#") or not line.strip(): continue
-                    parts = line.replace('"', '').split(",")
-                    if len(parts) > 2:
+        # 2. ThreatFox now requires a free auth key, so skip it unless configured.
+        if settings.THREATFOX_AUTH_KEY:
+            try:
+                threatfox_url = THREATFOX_EXPORT_URL.format(auth_key=settings.THREATFOX_AUTH_KEY)
+                r = await client.get(threatfox_url)
+                if r.status_code == 200:
+                    csv_text = _decode_zip_or_text(r)
+                    current_new = 0
+                    for parts in _read_csv_rows(csv_text):
+                        if len(parts) <= 2:
+                            continue
                         val = parts[2].strip()
+                        if not val:
+                            continue
                         if db.query(IOC).filter(IOC.value == val).first():
                             dupes += 1
                             continue
@@ -985,10 +994,14 @@ async def fetch_open_source_iocs(db: Session) -> dict:
                         new_count += 1
                         current_new += 1
                         if current_new >= 200: break
-        except Exception as e:
-            logger.error(f"ThreatFox CSV fetch failed: {e}")
+                else:
+                    logger.warning(f"ThreatFox export returned HTTP {r.status_code}")
+            except Exception as e:
+                logger.error(f"ThreatFox export fetch failed: {e}")
+        else:
+            logger.info("ThreatFox skipped: set THREATFOX_AUTH_KEY to enable its free authenticated export.")
 
-        # 3. Feodo Tracker (JSON)
+        # 3. Feodo Tracker free JSON export. No key required.
         try:
             r = await client.get(FEODO_TRACKER_JSON)
             if r.status_code == 200:
@@ -1081,6 +1094,141 @@ async def fetch_github_advisories(db: Session) -> dict:
         return {"source": "GITHUB_CVE", "error": str(e)}
 
 
+async def fetch_misp_circl(db: Session) -> dict:
+    """Fetch IOCs from CIRCL MISP OSINT manifest."""
+    log = FeedLog(feed_source="MISP_CIRCL", status="running")
+    db.add(log)
+    db.commit()
+    new_count = 0
+    dupes = 0
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            r = await client.get(CIRCL_MISP_FEED_URL)
+            r.raise_for_status()
+            manifest = r.json()
+            
+            # Manifest is a dict of event metadata
+            # For each event, we'd normally fetch the full JSON, 
+            # but for a "fast" integration we'll just extract what we can or limit it.
+            # Here we'll just simulate the ingestion of the most recent events attributes.
+            events = sorted(manifest.values(), key=lambda x: x.get('timestamp', '0'), reverse=True)[:5]
+            
+            for event in events:
+                event_uuid = event.get('uuid')
+                event_url = f"https://www.circl.lu/doc/misp/feed-osint/{event_uuid}.json"
+                try:
+                    er = await client.get(event_url)
+                    if er.status_code == 200:
+                        event_data = er.json().get('Event', {})
+                        for attr in event_data.get('Attribute', []):
+                            val = attr.get('value')
+                            raw_type = attr.get('type', '').lower()
+                            
+                            if not val or not raw_type: continue
+                            
+                            ioc_type = None
+                            if 'ip-dst' in raw_type or 'ip-src' in raw_type: ioc_type = 'ip'
+                            elif 'hostname' in raw_type or 'domain' in raw_type: ioc_type = 'domain'
+                            elif 'md5' in raw_type or 'sha1' in raw_type or 'sha256' in raw_type: ioc_type = 'hash'
+                            elif 'url' in raw_type: ioc_type = 'url'
+                            
+                            if not ioc_type: continue
+                            
+                            if db.query(IOC).filter(IOC.value == val).first():
+                                dupes += 1
+                                continue
+                                
+                            ioc = IOC(
+                                value=val,
+                                ioc_type=ioc_type,
+                                source=f"CIRCL MISP ({event_data.get('info', 'OSINT')})",
+                                tags=["osint", "misp"],
+                                threat_score=70.0,
+                                is_active=True
+                            )
+                            db.add(ioc)
+                            db.commit()
+                            await enrich_ioc(ioc, db)
+                            new_count += 1
+                            if new_count >= 150: break
+                except Exception as ee:
+                    logger.warning(f"Failed to fetch MISP event {event_uuid}: {ee}")
+                if new_count >= 150: break
+
+        log.status = "success"
+        log.items_new = new_count
+        log.items_duplicate = dupes
+        db.commit()
+        return {"source": "MISP_CIRCL", "new": new_count, "dupes": dupes}
+    except Exception as e:
+        log.status = "error"
+        log.error_msg = str(e)
+        db.commit()
+        return {"source": "MISP_CIRCL", "error": str(e)}
+
+async def fetch_alienvault_otx(db: Session) -> dict:
+    """Fetch IOCs from AlienVault OTX subscribed pulses."""
+    if not settings.ALIENVAULT_OTX_API_KEY:
+        return {"source": "ALIENVAULT_OTX", "error": "API Key missing"}
+        
+    log = FeedLog(feed_source="ALIENVAULT_OTX", status="running")
+    db.add(log)
+    db.commit()
+    new_count = 0
+    dupes = 0
+    try:
+        headers = {"X-OTX-API-KEY": settings.ALIENVAULT_OTX_API_KEY}
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            r = await client.get(OTX_API_URL, headers=headers)
+            r.raise_for_status()
+            data = r.json()
+            
+            pulses = data.get('results', [])
+            for pulse in pulses[:10]:
+                for indicator in pulse.get('indicators', []):
+                    val = indicator.get('indicator')
+                    raw_type = indicator.get('type', '').lower()
+                    
+                    if not val or not raw_type: continue
+                    
+                    ioc_type = None
+                    if 'ipv4' in raw_type or 'ipv6' in raw_type: ioc_type = 'ip'
+                    elif 'domain' in raw_type or 'hostname' in raw_type: ioc_type = 'domain'
+                    elif 'filehash' in raw_type or 'md5' in raw_type or 'sha1' in raw_type or 'sha256' in raw_type: ioc_type = 'hash'
+                    elif 'url' in raw_type: ioc_type = 'url'
+                    
+                    if not ioc_type: continue
+                    
+                    if db.query(IOC).filter(IOC.value == val).first():
+                        dupes += 1
+                        continue
+                        
+                    ioc = IOC(
+                        value=val,
+                        ioc_type=ioc_type,
+                        source=f"OTX Pulse: {pulse.get('name', 'Subscribed')}",
+                        tags=["otx", "alienvault"],
+                        threat_score=75.0,
+                        is_active=True
+                    )
+                    db.add(ioc)
+                    db.commit()
+                    await enrich_ioc(ioc, db)
+                    new_count += 1
+                    if new_count >= 150: break
+                if new_count >= 150: break
+                
+        log.status = "success"
+        log.items_new = new_count
+        log.items_duplicate = dupes
+        db.commit()
+        return {"source": "ALIENVAULT_OTX", "new": new_count, "dupes": dupes}
+    except Exception as e:
+        log.status = "error"
+        log.error_msg = str(e)
+        db.commit()
+        return {"source": "ALIENVAULT_OTX", "error": str(e)}
+
 async def run_all_feeds(db: Session = None) -> List[dict]:
     """Run all feed ingestion jobs. Each task is isolated to ensure one failure doesn't block others."""
     close_db = False
@@ -1121,6 +1269,18 @@ async def run_all_feeds(db: Session = None) -> List[dict]:
             results.append(await fetch_open_source_iocs(db))
         except Exception as e:
             logger.error(f"Isolated Feed Crash (OSINT_IOCS): {e}")
+
+        # 6. MISP CIRCL
+        try:
+            results.append(await fetch_misp_circl(db))
+        except Exception as e:
+            logger.error(f"Isolated Feed Crash (MISP_CIRCL): {e}")
+
+        # 7. AlienVault OTX
+        try:
+            results.append(await fetch_alienvault_otx(db))
+        except Exception as e:
+            logger.error(f"Isolated Feed Crash (ALIENVAULT_OTX): {e}")
 
         backfill_external_metadata(db)
         calculate_all_sector_risk(db)

@@ -10,8 +10,15 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # Database
-    # Use /tmp/ for SQLite on Render as it's a writable directory
     DATABASE_URL: str = "sqlite:////tmp/secure.db"
+    
+    @property
+    def sqlalchemy_database_url(self) -> str:
+        """Handle SQLAlchemy's requirement for postgresql:// instead of postgres://"""
+        if self.DATABASE_URL.startswith("postgres://"):
+            return self.DATABASE_URL.replace("postgres://", "postgresql://", 1)
+        return self.DATABASE_URL
+
     ALLOWED_ORIGINS: str = ""
 
     # Email (SMTP)
@@ -41,9 +48,13 @@ class Settings(BaseSettings):
     GOOGLE_SEARCH_ENGINE_ID: str = ""
     BRAVE_API_KEY: str = ""
     NVD_API_KEY: str = ""
+    THREATFOX_AUTH_KEY: str = ""
+    ALIENVAULT_OTX_API_KEY: str = ""
+    HYBRID_ANALYSIS_API_KEY: str = ""
 
     # Feed polling interval in minutes
     FEED_POLL_INTERVAL_MINUTES: int = 30
+    WARM_START_FEEDS_ENABLED: bool = False
     KEEP_ALIVE_INTERVAL_SECONDS: int = 240
     PUBLIC_BACKEND_URL: str = ""
 

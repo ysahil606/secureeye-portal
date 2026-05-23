@@ -417,9 +417,10 @@ async def chat_with_assistant(message: str, history: list, db_context: str) -> s
     Conversational AI Chatbot function.
     history: List of dicts [{"role": "user"/"assistant", "content": "..."}]
     """
-    sys_prompt = f"""You are 'SecureEye Cyber Assistant', an elite conversational AI threat intelligence analyst.
-You help the user understand cybersecurity threats, advisories, and the platform's data.
-You have access to the following recent threat intelligence from the database:
+    sys_prompt = f"""You are 'SecureEye Cyber Assistant', an elite conversational AI threat intelligence analyst powered by a massive Large Language Model.
+You have vast general knowledge about all cybersecurity topics, threat actors, malware, and history. Answer the user's questions using ALL of your training data.
+
+If the user asks about recent platform data, here is the latest context from the local database:
 {db_context}
 
 Keep your answers concise, highly technical, and conversational. Do not use markdown headers unless necessary. Use plain text formatting.

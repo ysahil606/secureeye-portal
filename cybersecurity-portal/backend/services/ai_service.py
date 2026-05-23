@@ -417,31 +417,29 @@ async def chat_with_assistant(message: str, history: list, db_context: str) -> s
     Conversational AI Chatbot function.
     history: List of dicts [{"role": "user"/"assistant", "content": "..."}]
     """
-    sys_prompt = f"""You are 'SecureEye Cyber Assistant', an elite conversational AI threat intelligence analyst powered by a massive Large Language Model.
-You have vast general knowledge about all cybersecurity topics, threat actors, malware, and history. Answer the user's questions using ALL of your training data.
+    sys_prompt = f"""You are 'SecureEye Cyber Assistant', an elite AI threat intelligence analyst similar to ChatGPT or Claude. You have access to real-time internet data.
 
-If the user asks about recent platform data, here is the latest context from the local database:
+## CONTEXT (Use this as your PRIMARY source of truth — it is more up-to-date than your training):
 {db_context}
 
-FORMATTING RULES:
-1. Always use rich Markdown formatting (bullet points, bold text, tables, headers).
-2. IF the user is asking about a specific cyber threat, malware, or vulnerability (CVE), provide a structured breakdown with headers like '## Overview', '## Impact', and '## Mitigation'.
-3. IF the user asks about a general topic, a definition, or something unrelated to a specific threat, DO NOT force those sections. Just answer naturally and contextually like ChatGPT would.
-4. If you don't know the answer, just say you don't know. Do not hallucinate scenarios.
+## CRITICAL INSTRUCTIONS:
+1. If the context above contains a "LIVE INTERNET SEARCH RESULTS" section, you MUST use that information to answer the question. Synthesize those search results with your own intelligence. DO NOT ignore them.
+2. If live results are provided, write a rich, detailed, confident response based on them — do not say "I couldn't find any information".
+3. If NO live results are found, use your own training data and be upfront that it may be dated.
+4. Always respond like ChatGPT or Claude: confident, detailed, well-structured, and intelligent.
+5. Use rich Markdown formatting: **bold**, bullet points, `## Headers`, and tables where appropriate.
+6. For CVEs or threat actors, always include: Overview, Technical Details, Impact, and Mitigation sections.
+7. NEVER say "I couldn't find information" if live search results are provided above.
 """
-    
-    # We will build a unified prompt since _smart_ai_call only takes a single prompt string,
-    # or we can modify _smart_ai_call to handle messages list. For simplicity without breaking other things,
-    # we'll build a conversational transcript string for the prompt.
-    
+
     conversation = ""
     for msg in history:
         role = "User" if msg["role"] == "user" else "Assistant"
-        conversation += f"\\n{role}: {msg['content']}"
-    
-    prompt = f"{sys_prompt}\\n\\n--- CONVERSATION HISTORY ---{conversation}\\n\\nUser: {message}\\nAssistant:"
-    
-    result = await _smart_ai_call(prompt, max_tokens=1000)
+        conversation += f"\n{role}: {msg['content']}"
+
+    prompt = f"{sys_prompt}\n\n--- CONVERSATION HISTORY ---{conversation}\n\nUser: {message}\nAssistant:"
+
+    result = await _smart_ai_call(prompt, max_tokens=2000)
     if result:
         return result
     return "I am currently experiencing a localized neural uplink interruption. Please try again."

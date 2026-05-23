@@ -100,19 +100,22 @@ async def chat_endpoint(
     for a in recent_advisories:
         context += f"Title: {a.title} | Severity: {a.severity} | CVE: {a.cve_ids}\\n"
 
-    # Dynamic CVE Lookup
+    # Dynamic CVE Lookup (Fallback to Shodan CVE API)
     cve_match = re.search(r"(CVE-\d{4}-\d{4,7})", req.message, re.IGNORECASE)
     if cve_match:
         cve_id = cve_match.group(1).upper()
         try:
             async with httpx.AsyncClient(timeout=5) as client:
-                r = await client.get(f"https://cve.circl.lu/api/cve/{cve_id}")
+                r = await client.get(f"https://cvedb.shodan.io/cve/{cve_id}")
                 if r.status_code == 200:
                     data = r.json()
                     if data:
                         context += f"\\n--- LIVE OSINT DATA FOR {cve_id} ---\\n"
                         context += f"Summary: {data.get('summary', 'N/A')}\\n"
                         context += f"CVSS: {data.get('cvss', 'N/A')}\\n"
+                        context += f"EPSS Score: {data.get('epss', 'N/A')}\\n"
+                elif r.status_code == 429:
+                    logger.warning(f"Rate limited by Shodan for {cve_id}")
         except Exception as e:
             logger.error(f"Failed to fetch live CVE data for {cve_id}: {e}")
 

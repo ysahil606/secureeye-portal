@@ -10,7 +10,7 @@ import toast from 'react-hot-toast'
 import api from '../services/api'
 import { formatDateTime, cvssColor, formatAIReport } from '../utils/helpers'
 import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remarkGfm'
+import remarkGfm from 'remark-gfm'
 const riskColors = {
   Critical: 'text-red-300 border-red-700/40 bg-red-950/30',
   High: 'text-orange-300 border-orange-700/40 bg-orange-950/30',

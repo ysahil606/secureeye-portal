@@ -29,7 +29,7 @@ SYS_PROMPT = (
     "(6) Be authoritative, precise, terse, and technically accurate."
 )
 
-async def _try_gemini(prompt: str, api_key: str, model: str = "gemini-2.0-flash", max_tokens: int = 3000, sys_prompt: str = SYS_PROMPT) -> str | None:
+async def _try_gemini(prompt: str, api_key: str, model: str = "gemini-2.0-flash", max_tokens: int = 3000, sys_prompt: str = SYS_PROMPT, use_search: bool = False) -> str | None:
     """Google Gemini — Free 1,500 req/day per key. Each model has its own quota."""
     if not api_key:
         return None
@@ -40,16 +40,24 @@ async def _try_gemini(prompt: str, api_key: str, model: str = "gemini-2.0-flash"
             "systemInstruction": {"parts": [{"text": sys_prompt}]},
             "generationConfig": {"temperature": 0.2, "maxOutputTokens": max_tokens}
         }
+        # Enable Google Search Grounding for real-time web search
+        if use_search:
+            payload["tools"] = [{"google_search_retrieval": {}}]
         async with httpx.AsyncClient(timeout=45) as client:
             r = await client.post(url, json=payload)
             if r.status_code == 200:
                 data = r.json()
-                text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                # Extract text — may be spread across multiple parts when search grounding is used
+                parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                text = "".join(p.get("text", "") for p in parts)
                 if text and len(text.strip()) > 100:
-                    logger.info(f"Gemini [{model}]: SUCCESS")
+                    mode = "SEARCH" if use_search else "STANDARD"
+                    logger.info(f"Gemini [{model}] [{mode}]: SUCCESS")
                     return text.strip()
             elif r.status_code == 429:
                 logger.warning(f"Gemini [{model}]: rate limit hit, trying next provider")
+            else:
+                logger.warning(f"Gemini [{model}]: HTTP {r.status_code}")
     except Exception as e:
         logger.warning(f"Gemini [{model}] failed: {e}")
     return None
@@ -415,21 +423,21 @@ RAW RECONNAISSANCE DATA:
 async def chat_with_assistant(message: str, history: list, db_context: str) -> str:
     """
     Conversational AI Chatbot function.
-    history: List of dicts [{"role": "user"/"assistant", "content": "..."}]
+    Tries Gemini with Google Search Grounding first for real-time answers.
+    Falls back to all other providers if Gemini is unavailable.
     """
-    sys_prompt = f"""You are 'SecureEye Cyber Assistant', an elite AI threat intelligence analyst similar to ChatGPT or Claude. You have access to real-time internet data.
+    CHAT_SYS_PROMPT = f"""You are 'SecureEye Cyber Assistant', an elite AI threat intelligence analyst similar to ChatGPT or Claude. You have real-time access to Google Search.
 
-## CONTEXT (Use this as your PRIMARY source of truth — it is more up-to-date than your training):
+## LOCAL DATABASE CONTEXT:
 {db_context}
 
-## CRITICAL INSTRUCTIONS:
-1. If the context above contains a "LIVE INTERNET SEARCH RESULTS" section, you MUST use that information to answer the question. Synthesize those search results with your own intelligence. DO NOT ignore them.
-2. If live results are provided, write a rich, detailed, confident response based on them — do not say "I couldn't find any information".
-3. If NO live results are found, use your own training data and be upfront that it may be dated.
-4. Always respond like ChatGPT or Claude: confident, detailed, well-structured, and intelligent.
-5. Use rich Markdown formatting: **bold**, bullet points, `## Headers`, and tables where appropriate.
-6. For CVEs or threat actors, always include: Overview, Technical Details, Impact, and Mitigation sections.
-7. NEVER say "I couldn't find information" if live search results are provided above.
+## INSTRUCTIONS:
+1. You have access to real-time Google Search. USE IT. Always search for the latest information.
+2. Provide rich, detailed, confident responses like ChatGPT or Claude — never say you cannot find information.
+3. For threat actors, CVEs, or malware, always provide: ## Overview, ## Technical Details, ## Impact, ## Mitigation.
+4. For general questions, answer naturally and conversationally.
+5. Always use rich Markdown: **bold**, bullet points, `## Headers`, and tables.
+6. Be highly technical, accurate, and authoritative.
 """
 
     conversation = ""
@@ -437,9 +445,26 @@ async def chat_with_assistant(message: str, history: list, db_context: str) -> s
         role = "User" if msg["role"] == "user" else "Assistant"
         conversation += f"\n{role}: {msg['content']}"
 
-    prompt = f"{sys_prompt}\n\n--- CONVERSATION HISTORY ---{conversation}\n\nUser: {message}\nAssistant:"
+    # Build a clean conversational prompt (no db_context injected — Gemini Search handles it)
+    simple_prompt = f"""Previous conversation:{conversation}\n\nUser's latest question: {message}\n\nProvide a comprehensive, well-structured response:"""
 
-    result = await _smart_ai_call(prompt, max_tokens=2000)
+    # ── Priority 1: Gemini with Google Search Grounding (REAL-TIME WEB ACCESS) ──
+    result = await _try_gemini(simple_prompt, settings.GEMINI_API_KEY, settings.GEMINI_MODEL_1, 2000, CHAT_SYS_PROMPT, use_search=True)
+    if result:
+        return result
+
+    result = await _try_gemini(simple_prompt, settings.GEMINI_API_KEY_2, settings.GEMINI_MODEL_2, 2000, CHAT_SYS_PROMPT, use_search=True)
+    if result:
+        return result
+
+    # ── Priority 2: Gemini without search (if search grounding fails) ──────────
+    result = await _try_gemini(simple_prompt, settings.GEMINI_API_KEY, settings.GEMINI_MODEL_1, 2000, CHAT_SYS_PROMPT, use_search=False)
+    if result:
+        return result
+
+    # ── Priority 3: Fall back to full provider rotation ───────────────────────
+    full_prompt = f"{CHAT_SYS_PROMPT}\n\n--- CONTEXT ---\n{db_context}\n\n--- CONVERSATION ---{conversation}\n\nUser: {message}\nAssistant:"
+    result = await _smart_ai_call(full_prompt, max_tokens=2000)
     if result:
         return result
     return "I am currently experiencing a localized neural uplink interruption. Please try again."

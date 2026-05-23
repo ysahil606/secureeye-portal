@@ -3,6 +3,8 @@ import { Bot, Send, X, Minimize2, Maximize2, BrainCircuit, User } from 'lucide-r
 import api from '../services/api'
 import clsx from 'clsx'
 import { motion } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 export default function CyberAssistant() {
   const [isOpen, setIsOpen] = useState(false)
@@ -162,12 +164,21 @@ export default function CyberAssistant() {
                   {msg.role === 'user' ? <User className="w-4 h-4 text-blue-400" /> : <Bot className="w-4 h-4 text-purple-400" />}
                 </div>
                 <div className={clsx(
-                  "max-w-[80%] rounded-2xl px-4 py-3 text-sm font-mono whitespace-pre-wrap leading-relaxed shadow-lg",
+                  "max-w-[85%] rounded-2xl px-5 py-4 text-sm whitespace-pre-wrap leading-relaxed shadow-lg overflow-x-auto",
                   msg.role === 'user' 
-                    ? "bg-gradient-to-br from-blue-900/40 to-blue-950/40 border border-blue-500/20 text-blue-50 rounded-tr-none" 
-                    : "bg-gradient-to-br from-purple-900/20 to-[#030a16] border border-purple-500/20 text-purple-50/90 rounded-tl-none"
+                    ? "bg-gradient-to-br from-blue-900/40 to-blue-950/40 border border-blue-500/20 text-blue-50 rounded-tr-none font-mono" 
+                    : "bg-gradient-to-br from-purple-900/20 to-[#030a16] border border-purple-500/20 text-purple-50/90 rounded-tl-none font-sans"
                 )}>
-                  {msg.content}
+                  {msg.role === 'assistant' ? (
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      className="space-y-4 [&>h1]:text-xl [&>h1]:font-bold [&>h1]:text-purple-300 [&>h2]:text-lg [&>h2]:font-bold [&>h2]:text-purple-300 [&>h3]:text-base [&>h3]:font-bold [&>h3]:text-purple-300 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:pl-5 [&>ol]:space-y-1 [&>p]:leading-relaxed [&>p]:text-gray-300 [&_strong]:text-white [&_a]:text-cyan-400 [&_a]:underline [&_table]:w-full [&_th]:border [&_th]:border-purple-500/30 [&_th]:p-2 [&_th]:bg-purple-900/30 [&_td]:border [&_td]:border-purple-500/20 [&_td]:p-2 [&_code]:bg-[#00050b] [&_code]:text-emerald-400 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-md [&_code]:font-mono [&_code]:text-xs [&_pre]:bg-[#00050b] [&_pre]:p-4 [&_pre]:rounded-xl [&_pre]:overflow-x-auto [&_pre_code]:bg-transparent [&_pre_code]:text-sm [&_pre_code]:text-blue-300 [&>blockquote]:border-l-4 [&>blockquote]:border-purple-500/50 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:text-gray-400"
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                  ) : (
+                    msg.content
+                  )}
                 </div>
               </div>
             ))}

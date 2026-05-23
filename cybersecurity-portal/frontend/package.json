@@ -32,9 +32,11 @@
     "react-dom": "^18.3.1",
     "react-force-graph-2d": "^1.29.1",
     "react-hot-toast": "^2.4.1",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^6.23.1",
     "react-simple-maps": "^3.0.0",
     "recharts": "^2.12.7",
+    "remark-gfm": "^4.0.1",
     "simple-statistics": "^7.8.9",
     "topojson-client": "^3.1.0"
   },

@@ -226,17 +226,12 @@ allowed_origins = [
     "https://secure-portal.vercel.app",
 ]
 
-# Allow custom production origin from env
-if hasattr(settings, "ALLOWED_ORIGINS") and settings.ALLOWED_ORIGINS:
-    if settings.ALLOWED_ORIGINS == "*":
-        allowed_origins = ["*"]
-    else:
-        allowed_origins.extend([o.strip() for o in settings.ALLOWED_ORIGINS.split(",")])
+allowed_origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=True if "*" not in allowed_origins else False,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

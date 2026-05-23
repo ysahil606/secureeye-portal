@@ -242,6 +242,10 @@ app.add_middleware(
 )
 
 # Register routers
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok"}
+
 app.include_router(auth.router, prefix="/api")
 app.include_router(advisories.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")

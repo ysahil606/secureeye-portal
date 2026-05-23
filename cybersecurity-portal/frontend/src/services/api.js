@@ -2,15 +2,7 @@ import axios from 'axios'
 
 // Prioritize environment variable, then current hostname, then fallback to local dev port
 const getBaseUrl = () => {
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL
-  
-  const { hostname, protocol } = window.location
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return `${protocol}//${hostname}:8000/api`
-  }
-  
-  // Fallback production URL if needed
-  return 'https://secure-eye.up.railway.app/api'
+  return 'https://140.238.166.249.nip.io/api'
 }
 
 export const API_URL = getBaseUrl()

@@ -9,7 +9,8 @@ import {
 import toast from 'react-hot-toast'
 import api from '../services/api'
 import { formatDateTime, cvssColor, formatAIReport } from '../utils/helpers'
-
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remarkGfm'
 const riskColors = {
   Critical: 'text-red-300 border-red-700/40 bg-red-950/30',
   High: 'text-orange-300 border-orange-700/40 bg-orange-950/30',
@@ -279,10 +280,32 @@ export default function AdvancedSecurityCenter() {
                     <Target className="w-3.5 h-3.5" /> Confidence: <span className="text-slate-300">{analystResult.confidence}</span>
                   </span>
                 </div>
-                <div 
-                  className="p-5 bg-blue-950/10 border border-blue-900/30 rounded-xl text-sm text-blue-200/80 leading-relaxed font-medium text-justify whitespace-pre-wrap"
-                  dangerouslySetInnerHTML={{ __html: formatAIReport(analystResult.summary) }}
-                />
+                <div className="p-4 bg-gradient-to-br from-[#0d0a1f] to-[#030a16] border border-purple-500/20 rounded-xl text-[13px] leading-[1.7] text-gray-200 shadow-inner overflow-x-auto">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      h1: ({node, ...props}) => <h1 style={{fontSize:'1.2em', fontWeight:700, color:'#c4b5fd', marginBottom:'0.5em', marginTop:'0.75em', borderBottom:'1px solid rgba(139,92,246,0.2)', paddingBottom:'0.3em'}} {...props} />,
+                      h2: ({node, ...props}) => <h2 style={{fontSize:'1.05em', fontWeight:700, color:'#a78bfa', marginBottom:'0.4em', marginTop:'0.75em'}} {...props} />,
+                      h3: ({node, ...props}) => <h3 style={{fontSize:'0.95em', fontWeight:600, color:'#8b5cf6', marginBottom:'0.3em', marginTop:'0.5em'}} {...props} />,
+                      p: ({node, ...props}) => <p style={{marginBottom:'0.6em', color:'#d1d5db', lineHeight:'1.7'}} {...props} />,
+                      ul: ({node, ...props}) => <ul style={{paddingLeft:'1.2em', marginBottom:'0.5em', listStyleType:'disc'}} {...props} />,
+                      ol: ({node, ...props}) => <ol style={{paddingLeft:'1.2em', marginBottom:'0.5em', listStyleType:'decimal'}} {...props} />,
+                      li: ({node, ...props}) => <li style={{marginBottom:'0.2em', color:'#d1d5db'}} {...props} />,
+                      strong: ({node, ...props}) => <strong style={{color:'#ffffff', fontWeight:600}} {...props} />,
+                      code: ({node, inline, ...props}) => inline
+                        ? <code style={{background:'#00050b', color:'#34d399', padding:'0.1em 0.4em', borderRadius:'4px', fontFamily:'monospace', fontSize:'0.85em'}} {...props} />
+                        : <code style={{display:'block', background:'#00050b', color:'#93c5fd', padding:'1em', borderRadius:'8px', fontSize:'0.8em', overflowX:'auto', fontFamily:'monospace', marginBottom:'0.5em'}} {...props} />,
+                      pre: ({node, ...props}) => <pre style={{background:'transparent', margin:0, padding:0}} {...props} />,
+                      table: ({node, ...props}) => <table style={{width:'100%', borderCollapse:'collapse', marginBottom:'0.5em', fontSize:'0.85em'}} {...props} />,
+                      th: ({node, ...props}) => <th style={{border:'1px solid rgba(139,92,246,0.3)', padding:'0.4em 0.6em', background:'rgba(88,28,135,0.3)', color:'#e9d5ff', textAlign:'left'}} {...props} />,
+                      td: ({node, ...props}) => <td style={{border:'1px solid rgba(139,92,246,0.15)', padding:'0.4em 0.6em', color:'#d1d5db'}} {...props} />,
+                      blockquote: ({node, ...props}) => <blockquote style={{borderLeft:'3px solid rgba(139,92,246,0.5)', paddingLeft:'0.8em', color:'#9ca3af', fontStyle:'italic', margin:'0.5em 0'}} {...props} />,
+                      a: ({node, ...props}) => <a style={{color:'#22d3ee', textDecoration:'underline'}} target="_blank" rel="noopener noreferrer" {...props} />,
+                    }}
+                  >
+                    {analystResult.summary}
+                  </ReactMarkdown>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {analystResult.recommended_actions.map((action, idx) => (
                     <div key={idx} className="text-xs font-medium text-slate-300 bg-[#050810] border border-slate-800/80 rounded-lg p-3 flex items-start gap-2">
@@ -399,10 +422,32 @@ export default function AdvancedSecurityCenter() {
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                       <Bot className="w-4 h-4 text-cyan-400" /> Neural Analysis
                     </h3>
-                    <div 
-                      className="p-5 bg-blue-950/10 border border-blue-900/30 rounded-xl text-sm text-blue-200/80 leading-relaxed font-medium text-justify whitespace-pre-wrap"
-                      dangerouslySetInnerHTML={{ __html: formatAIReport(surface.ai_summary) }}
-                    />
+                    <div className="p-4 bg-gradient-to-br from-[#0d0a1f] to-[#030a16] border border-purple-500/20 rounded-xl text-[13px] leading-[1.7] text-gray-200 shadow-inner overflow-x-auto">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          h1: ({node, ...props}) => <h1 style={{fontSize:'1.2em', fontWeight:700, color:'#c4b5fd', marginBottom:'0.5em', marginTop:'0.75em', borderBottom:'1px solid rgba(139,92,246,0.2)', paddingBottom:'0.3em'}} {...props} />,
+                          h2: ({node, ...props}) => <h2 style={{fontSize:'1.05em', fontWeight:700, color:'#a78bfa', marginBottom:'0.4em', marginTop:'0.75em'}} {...props} />,
+                          h3: ({node, ...props}) => <h3 style={{fontSize:'0.95em', fontWeight:600, color:'#8b5cf6', marginBottom:'0.3em', marginTop:'0.5em'}} {...props} />,
+                          p: ({node, ...props}) => <p style={{marginBottom:'0.6em', color:'#d1d5db', lineHeight:'1.7'}} {...props} />,
+                          ul: ({node, ...props}) => <ul style={{paddingLeft:'1.2em', marginBottom:'0.5em', listStyleType:'disc'}} {...props} />,
+                          ol: ({node, ...props}) => <ol style={{paddingLeft:'1.2em', marginBottom:'0.5em', listStyleType:'decimal'}} {...props} />,
+                          li: ({node, ...props}) => <li style={{marginBottom:'0.2em', color:'#d1d5db'}} {...props} />,
+                          strong: ({node, ...props}) => <strong style={{color:'#ffffff', fontWeight:600}} {...props} />,
+                          code: ({node, inline, ...props}) => inline
+                            ? <code style={{background:'#00050b', color:'#34d399', padding:'0.1em 0.4em', borderRadius:'4px', fontFamily:'monospace', fontSize:'0.85em'}} {...props} />
+                            : <code style={{display:'block', background:'#00050b', color:'#93c5fd', padding:'1em', borderRadius:'8px', fontSize:'0.8em', overflowX:'auto', fontFamily:'monospace', marginBottom:'0.5em'}} {...props} />,
+                          pre: ({node, ...props}) => <pre style={{background:'transparent', margin:0, padding:0}} {...props} />,
+                          table: ({node, ...props}) => <table style={{width:'100%', borderCollapse:'collapse', marginBottom:'0.5em', fontSize:'0.85em'}} {...props} />,
+                          th: ({node, ...props}) => <th style={{border:'1px solid rgba(139,92,246,0.3)', padding:'0.4em 0.6em', background:'rgba(88,28,135,0.3)', color:'#e9d5ff', textAlign:'left'}} {...props} />,
+                          td: ({node, ...props}) => <td style={{border:'1px solid rgba(139,92,246,0.15)', padding:'0.4em 0.6em', color:'#d1d5db'}} {...props} />,
+                          blockquote: ({node, ...props}) => <blockquote style={{borderLeft:'3px solid rgba(139,92,246,0.5)', paddingLeft:'0.8em', color:'#9ca3af', fontStyle:'italic', margin:'0.5em 0'}} {...props} />,
+                          a: ({node, ...props}) => <a style={{color:'#22d3ee', textDecoration:'underline'}} target="_blank" rel="noopener noreferrer" {...props} />,
+                        }}
+                      >
+                        {surface.ai_summary}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 )}
               </motion.div>

@@ -207,105 +207,41 @@ async def scrape_link(url: str) -> str:
 async def get_ai_summary(content: str) -> str:
     """
     Generates an ultra-professional, classified threat intelligence report
-    using AI as the primary engine.
+    using AI as the primary engine with Google Search Grounding for live data.
     """
     prompt = f"""Analyze the following security content and produce a COMPLETE, STRUCTURED intelligence report.
 
 CRITICAL RULES:
-- Use EXACTLY the section headers below in EXACT order. DO NOT skip any section.
-- NO markdown: no asterisks (*), no hashtags (#), no bold (**text**), no underscores.
-- Use plain dashes (-) for ALL bullet points.
-- If data is unknown, fill with expert knowledge — NEVER leave blank. Do NOT use the phrase [ANALYST ESTIMATE].
-- Output ONLY plain text. No preambles, no sign-offs, no extra commentary.
-
-====================================================================
-SECURE THREAT INTELLIGENCE BRIEF
-[THREAT_ID: Primary CVE ID, malware family name, or threat campaign. E.g., CVE-2024-12345 or MALWARE-AGENT-TESLA]
-[CLASSIFICATION: CRITICAL / HIGH / MEDIUM / LOW]
-[CVSS_SCORE: e.g., 9.8 or N/A]
-[CVSS_VECTOR: e.g., AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H or N/A]
-[TLP: AMBER]
-[REPORT_DATE: today's date as DD MMM YYYY]
-====================================================================
-
-EXECUTIVE OVERVIEW
-Provide a concise, bulleted summary covering all critical aspects:
-- Threat Summary: [1-2 sentences on what the threat is and its severity]
-- Systems Affected: [Vendors, products, or industries impacted]
-- Attack Vector: [Exploitation method and complexity]
-- Business Impact: [Immediate risk to the organization if unaddressed]
-- Remediation Priority: [The most urgent action required]
-
-THREAT ACTOR PROFILE
-- Attribution: [Nation-state / Cybercriminal / Hacktivist / Unknown — with confidence level]
-- Known Group: [APT name or group alias if attributed, else UNKNOWN]
-- Primary Motivation: [Financial / Espionage / Sabotage / Ideology]
-- Target Sectors: [Industries or government sectors most at risk]
-- Historical Activity: [Known past campaigns or similar attacks by this actor]
-- Sophistication Level: [LOW / MEDIUM / HIGH / NATION-STATE GRADE]
-
-MITRE ATT&CK MAPPING
-- Tactic: [Initial Access]\n  Technique: [e.g., T1190 - Exploit Public-Facing Application]
-- Tactic: [Execution / Persistence / Privilege Escalation — most relevant]\n  Technique: [e.g., T1059.001 - PowerShell]
-- Tactic: [Command and Control or Exfiltration]\n  Technique: [e.g., T1071.001 - Web Protocols]
-- Tactic: [Defense Evasion]\n  Technique: [e.g., T1027 - Obfuscated Files or Information]
-
-TECHNICAL ANALYSIS
-- Vulnerability Class: [CWE type, e.g., CWE-78: OS Command Injection]
-- Affected Products: [Specific software, versions, firmware, protocols]
-- Attack Chain: [Step-by-step: Initial access → Execution → Persistence → Objective]
-- Exploitation Complexity: [LOW / MEDIUM / HIGH + justification]
-- Authentication Required: [YES / NO / PARTIAL]
-- Public Exploit Available: [YES - PoC Public / YES - Weaponized / NO / UNCONFIRMED]
-- In-the-Wild Exploitation: [CONFIRMED ACTIVE / LIMITED REPORTS / UNCONFIRMED / NO EVIDENCE]
-- Payload Type: [Ransomware / RAT / Dropper / Backdoor / Infostealer / N/A]
-
-INDICATORS OF COMPROMISE
-- File Hashes (MD5/SHA256): [Known malicious hashes, or likely hash patterns]
-- IP Addresses / C2 Infrastructure: [Known IPs, domains, or URLs used for C2]
-- Malicious URLs / Download Locations: [Staging servers, payload delivery URLs]
-- File System Artifacts: [Dropped files, registry keys, scheduled tasks, service names]
-- Network Indicators: [Ports, protocols, beacon intervals, JA3/JA3S signatures, DNS queries]
-- Process Indicators: [Spawned processes, injected processes, unusual parent-child relationships]
-- YARA/Sigma Detection Hint: [Concise detection rule concept]
-
-IMPACT ASSESSMENT
-- Confidentiality Impact: [COMPLETE / PARTIAL / NONE — data at risk]
-- Integrity Impact: [COMPLETE / PARTIAL / NONE — what can be tampered]
-- Availability Impact: [COMPLETE / PARTIAL / NONE — downtime / ransomware risk]
-- Affected Industries: [Finance, Healthcare, Government, Energy, Retail, etc.]
-- Geographic Scope: [Global / Regional — specify regions]
-- Regulatory Exposure: [GDPR / HIPAA / PCI-DSS / SOX / NIS2 / NERC CIP applicable]
-- Estimated Financial Impact: [Quantify: e.g., potential $X million breach, ransom demands]
-- Collateral Risk: [Supply chain exposure, lateral movement potential, downstream impact]
-
-REMEDIATION DIRECTIVES
-1. IMMEDIATE (0-24 hours): [Emergency containment — block IPs, isolate systems, pull network segments]
-2. SHORT-TERM (24-72 hours): [Patch deployment, credential resets, firewall rules, temporary mitigations]
-3. MEDIUM-TERM (3-7 days): [System hardening, detection rule deployment, threat hunting queries]
-4. LONG-TERM (7-30 days): [Architecture review, vendor assessment, policy and process improvements]
-5. DETECTION ENGINEERING: [Specific SIEM rule concept, EDR hunt query, Suricata/Snort rule hint, or YARA rule skeleton]
-
-ANALYST VERDICT
-Write exactly 3 sentences:
-1. The single most critical action the security team must execute within the next hour.
-2. The primary worst-case risk scenario if no action is taken within 48 hours.
-3. Overall threat confidence level and recommended escalation path.
-
-INTELLIGENCE REFERENCES
-- NVD Database: https://nvd.nist.gov/vuln/detail/[CVE-ID or NOT AVAILABLE]
-- MITRE ATT&CK: https://attack.mitre.org/techniques/[Primary TID]/ [or NOT AVAILABLE]
-- MITRE CVE: https://cve.mitre.org/cgi-bin/cvename.cgi?name=[CVE-ID or NOT AVAILABLE]
-- CISA KEV Catalog: https://www.cisa.gov/known-exploited-vulnerabilities-catalog [if in KEV, else NOT AVAILABLE]
-- Vendor Security Advisory: [Official vendor patch URL or NOT AVAILABLE]
-- VirusTotal: https://www.virustotal.com/gui/search/[hash or threat name]
-- Additional Source: [Researcher blog, threat report, or vendor advisory URL]
-====================================================================
+- Provide rich, detailed, confident responses like ChatGPT or Claude — never say you cannot find information.
+- ALWAYS use rich Markdown formatting: **bold**, bullet points, `## Headers`, and tables.
+- ALWAYS end your response with a `## References` section containing 3-5 real, valid hyperlinks using Markdown format: `[Source Name](https://url)`. Include NVD, vendor advisories, threat intelligence blogs as appropriate.
+- Include the following sections in your report:
+  - `## Executive Overview`
+  - `## Technical Details & TTPs`
+  - `## Impact Assessment`
+  - `## Indicators of Compromise (IOCs)`
+  - `## Mitigation & Remediation`
+  - `## References`
 
 CONTENT TO ANALYZE:
 {content[:14000]}
 """
-    # Use smart rotating AI engine (Gemini → Groq x3 → Cerebras → OpenRouter)
+
+    # ── Priority 1: Gemini with Google Search Grounding (REAL-TIME WEB ACCESS) ──
+    result = await _try_gemini(prompt, settings.GEMINI_API_KEY, settings.GEMINI_MODEL_1, 3000, "You are an elite threat intelligence analyst.", use_search=True)
+    if result:
+        return result
+
+    result = await _try_gemini(prompt, settings.GEMINI_API_KEY_2, settings.GEMINI_MODEL_2, 3000, "You are an elite threat intelligence analyst.", use_search=True)
+    if result:
+        return result
+
+    # ── Priority 2: Gemini without search (if search grounding fails) ──────────
+    result = await _try_gemini(prompt, settings.GEMINI_API_KEY, settings.GEMINI_MODEL_1, 3000, "You are an elite threat intelligence analyst.", use_search=False)
+    if result:
+        return result
+
+    # ── Priority 3: Fall back to full provider rotation ───────────────────────
     result = await _smart_ai_call(prompt, max_tokens=3000)
     if result:
         return result

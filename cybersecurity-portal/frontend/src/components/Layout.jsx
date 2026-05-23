@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
-import AIBotPopup from './AIBotPopup'
+import CyberAssistant from './CyberAssistant'
 import clsx from 'clsx'
 import { Shield } from 'lucide-react'
 
@@ -46,7 +46,7 @@ export default function Layout() {
       </main>
 
       <BottomNav onMenuClick={() => setMobileOpen(true)} />
-      <AIBotPopup />
+      <CyberAssistant />
     </div>
   )
 }

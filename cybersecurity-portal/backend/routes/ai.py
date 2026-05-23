@@ -80,3 +80,22 @@ Threat Description: {advisory.description}
 """
     prediction = await ai_service.summarize_threat_report(prompt)
     return {"prediction": prediction}
+
+class AIChatRequest(BaseModel):
+    message: str
+    history: list = []
+
+@router.post("/chat")
+async def chat_endpoint(
+    req: AIChatRequest,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    # Fetch 5 most recent advisories to give the bot context
+    recent_advisories = db.query(Advisory).order_by(Advisory.published_date.desc()).limit(5).all()
+    context = ""
+    for a in recent_advisories:
+        context += f"Title: {a.title} | Severity: {a.severity} | CVE: {a.cve_id}\\n"
+
+    response = await ai_service.chat_with_assistant(req.message, req.history, context)
+    return {"reply": response}

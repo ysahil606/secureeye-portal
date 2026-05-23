@@ -411,3 +411,32 @@ RAW RECONNAISSANCE DATA:
     if result:
         return result
     return "Automated analysis completed. Review the raw telemetry for technical details."
+
+async def chat_with_assistant(message: str, history: list, db_context: str) -> str:
+    """
+    Conversational AI Chatbot function.
+    history: List of dicts [{"role": "user"/"assistant", "content": "..."}]
+    """
+    sys_prompt = f"""You are 'SecureEye Cyber Assistant', an elite conversational AI threat intelligence analyst.
+You help the user understand cybersecurity threats, advisories, and the platform's data.
+You have access to the following recent threat intelligence from the database:
+{db_context}
+
+Keep your answers concise, highly technical, and conversational. Do not use markdown headers unless necessary. Use plain text formatting.
+"""
+    
+    # We will build a unified prompt since _smart_ai_call only takes a single prompt string,
+    # or we can modify _smart_ai_call to handle messages list. For simplicity without breaking other things,
+    # we'll build a conversational transcript string for the prompt.
+    
+    conversation = ""
+    for msg in history:
+        role = "User" if msg["role"] == "user" else "Assistant"
+        conversation += f"\\n{role}: {msg['content']}"
+    
+    prompt = f"{sys_prompt}\\n\\n--- CONVERSATION HISTORY ---{conversation}\\n\\nUser: {message}\\nAssistant:"
+    
+    result = await _smart_ai_call(prompt, max_tokens=1000)
+    if result:
+        return result
+    return "I am currently experiencing a localized neural uplink interruption. Please try again."

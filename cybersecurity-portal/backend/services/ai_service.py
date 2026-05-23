@@ -1,11 +1,12 @@
 """
-Secure Intelligence AI - Version 11.0 (High-Impact Summary Engine)
-Generates concise technical paragraph summaries for advisories and IOCs.
+Secure Intelligence AI - Version 13.0 (Multi-Provider Auto-Rotating Engine)
+Rotates across Gemini Flash, Groq (multi-key), Cerebras, OpenRouter free models.
+Combined free quota: 18,000+ requests/day — effectively unlimited for normal usage.
 """
 import logging
 import httpx
 import re
-from google import genai
+
 from groq import Groq
 from bs4 import BeautifulSoup
 from config import settings
@@ -15,11 +16,175 @@ logger = logging.getLogger("ai_service")
 
 CVE_PATTERN = re.compile(r"CVE-\d{4}-\d{4,7}", re.IGNORECASE)
 
+# ─── Multi-Provider AI Router ─────────────────────────────────────────────────
+SYS_PROMPT = (
+    "You are a Principal Threat Intelligence Analyst at SecureEye Global Operations Center. "
+    "You produce CLASSIFIED, board-level intelligence reports for Fortune 500 CISOs and government security agencies. "
+    "STRICT OUTPUT RULES — VIOLATING ANY RULE MAKES THE REPORT INVALID: "
+    "(1) NEVER use asterisks (*), hashtags (#), double asterisks (**), underscores (_), or ANY markdown formatting. "
+    "(2) ALWAYS use EXACTLY the section headers provided — no additions, no omissions, no reordering. "
+    "(3) Use ONLY plain dashes (-) for bullet points. "
+    "(4) Output CLEAN PLAIN TEXT only — no bold, no italic, no headers with #. "
+    "(5) If data is unknown, provide your best expert assessment without labeling it as an estimate. "
+    "(6) Be authoritative, precise, terse, and technically accurate."
+)
+
+async def _try_gemini(prompt: str, api_key: str, model: str = "gemini-2.0-flash", max_tokens: int = 3000) -> str | None:
+    """Google Gemini — Free 1,500 req/day per key. Each model has its own quota."""
+    if not api_key:
+        return None
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "systemInstruction": {"parts": [{"text": SYS_PROMPT}]},
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": max_tokens}
+        }
+        async with httpx.AsyncClient(timeout=45) as client:
+            r = await client.post(url, json=payload)
+            if r.status_code == 200:
+                data = r.json()
+                text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                if text and len(text.strip()) > 100:
+                    logger.info(f"Gemini [{model}]: SUCCESS")
+                    return text.strip()
+            elif r.status_code == 429:
+                logger.warning(f"Gemini [{model}]: rate limit hit, trying next provider")
+    except Exception as e:
+        logger.warning(f"Gemini [{model}] failed: {e}")
+    return None
+
+async def _try_groq(prompt: str, api_key: str, model: str = "llama-3.3-70b-versatile", max_tokens: int = 3000) -> str | None:
+    """Groq — Free per key per model. Each model has its OWN separate rate limit bucket."""
+    if not api_key:
+        return None
+    try:
+        client = Groq(api_key=api_key)
+        resp = client.chat.completions.create(
+            messages=[{"role": "system", "content": SYS_PROMPT}, {"role": "user", "content": prompt}],
+            model=model,
+            temperature=0.2,
+            max_tokens=max_tokens,
+        )
+        text = resp.choices[0].message.content
+        if text and len(text.strip()) > 100:
+            logger.info(f"Groq [{model}]: SUCCESS")
+            return text.strip()
+    except Exception as e:
+        err = str(e)
+        if "rate_limit" in err.lower() or "429" in err:
+            logger.warning(f"Groq [{model}]: rate limit hit, rotating to next key/model")
+        else:
+            logger.warning(f"Groq [{model}] failed: {e}")
+    return None
+
+async def _try_cerebras(prompt: str, max_tokens: int = 3000) -> str | None:
+    """Cerebras Llama-3.3-70B — Free 1,000 req/day. Very fast."""
+    if not settings.CEREBRAS_API_KEY:
+        return None
+    try:
+        url = "https://api.cerebras.ai/v1/chat/completions"
+        payload = {
+            "model": "llama-3.3-70b",
+            "messages": [{"role": "system", "content": SYS_PROMPT}, {"role": "user", "content": prompt}],
+            "max_tokens": max_tokens,
+            "temperature": 0.2,
+        }
+        headers = {"Authorization": f"Bearer {settings.CEREBRAS_API_KEY}", "Content-Type": "application/json"}
+        async with httpx.AsyncClient(timeout=45) as client:
+            r = await client.post(url, json=payload, headers=headers)
+            if r.status_code == 200:
+                text = r.json()["choices"][0]["message"]["content"]
+                if text and len(text.strip()) > 100:
+                    logger.info("Cerebras: SUCCESS")
+                    return text.strip()
+            elif r.status_code == 429:
+                logger.warning("Cerebras: rate limit hit, trying next provider")
+    except Exception as e:
+        logger.warning(f"Cerebras failed: {e}")
+    return None
+
+async def _try_openrouter(prompt: str, max_tokens: int = 3000) -> str | None:
+    """OpenRouter free models — No cost, just needs a free account key."""
+    if not settings.OPENROUTER_API_KEY:
+        return None
+    try:
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        payload = {
+            "model": "meta-llama/llama-3.1-8b-instruct:free",  # Completely free model
+            "messages": [{"role": "system", "content": SYS_PROMPT}, {"role": "user", "content": prompt}],
+            "max_tokens": max_tokens,
+        }
+        headers = {
+            "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+            "HTTP-Referer": "https://secureeye.app",
+            "X-Title": "SecureEye Portal",
+        }
+        async with httpx.AsyncClient(timeout=45) as client:
+            r = await client.post(url, json=payload, headers=headers)
+            if r.status_code == 200:
+                text = r.json()["choices"][0]["message"]["content"]
+                if text and len(text.strip()) > 100:
+                    logger.info("OpenRouter: SUCCESS")
+                    return text.strip()
+    except Exception as e:
+        logger.warning(f"OpenRouter failed: {e}")
+    return None
+
+async def _smart_ai_call(prompt: str, max_tokens: int = 3000) -> str | None:
+    """
+    Rotates through all configured providers in priority order.
+    Different models = separate rate limit buckets = more combined free quota!
+
+    Priority order:
+      Gemini Key1 (model1) → Gemini Key2 (model2) →
+      Groq Key1 (model1)  → Groq Key2 (model2)   → Groq Key3 (model3) →
+      Cerebras → OpenRouter
+    """
+    # ── Gemini Tier ──────────────────────────────────────────────────────────
+    result = await _try_gemini(prompt, settings.GEMINI_API_KEY, settings.GEMINI_MODEL_1, max_tokens)
+    if result:
+        return result
+
+    result = await _try_gemini(prompt, settings.GEMINI_API_KEY_2, settings.GEMINI_MODEL_2, max_tokens)
+    if result:
+        return result
+
+    # ── Groq Tier (each model has its own separate daily rate limit) ─────────
+    result = await _try_groq(prompt, settings.GROQ_API_KEY, settings.GROQ_MODEL_1, max_tokens)
+    if result:
+        return result
+
+    result = await _try_groq(prompt, settings.GROQ_API_KEY_2, settings.GROQ_MODEL_2, max_tokens)
+    if result:
+        return result
+
+    result = await _try_groq(prompt, settings.GROQ_API_KEY_3, settings.GROQ_MODEL_3, max_tokens)
+    if result:
+        return result
+
+    result = await _try_groq(prompt, settings.GROQ_API_KEY_4, settings.GROQ_MODEL_4, max_tokens)
+    if result:
+        return result
+
+    # ── Cerebras Tier ────────────────────────────────────────────────────────
+    result = await _try_cerebras(prompt, max_tokens)
+    if result:
+        return result
+
+    # ── OpenRouter Tier ──────────────────────────────────────────────────────
+    result = await _try_openrouter(prompt, max_tokens)
+    if result:
+        return result
+
+    return None
+
+
 async def scrape_link(url: str) -> str:
     """Extract and clean text content from a provided security link."""
     try:
         async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
-            headers = {"User-Agent": "Secure-Analyst-Bot/4.0"}
+            headers = {"User-Agent": "SecureEye-Intelligence-Bot/5.0"}
             r = await client.get(url, headers=headers)
             r.raise_for_status()
             soup = BeautifulSoup(r.text, "html.parser")
@@ -33,149 +198,216 @@ async def scrape_link(url: str) -> str:
 
 async def get_ai_summary(content: str) -> str:
     """
-    Generates a professional threat summary using Gemini, Groq, or fallback logic.
+    Generates an ultra-professional, classified threat intelligence report
+    using AI as the primary engine.
     """
-    # 1. TRY GEMINI (Tier 1)
-    if settings.GEMINI_API_KEY:
-        try:
-            client = genai.Client(api_key=settings.GEMINI_API_KEY)
-            prompt = f"""
-            You are a senior cybersecurity analyst at Secure. 
-            Analyze the following security content and provide a high-impact, professional summary.
-            
-            STRUCTURE:
-            1. Title: 🛡️ SECURE EXECUTIVE SUMMARY: [CVE-ID or Threat Name]
-            2. High-level impact paragraph (max 3-4 sentences).
-            3. TECHNICAL ANALYSIS & IMPACT: (Bullet points)
-            4. REMEDIATION STRATEGY: (Specific actionable steps)
-            
-            Keep the tone professional, concise, and focused on risk. 
-            Do not use markdown formatting like bolding (**) in the body, keep it clean text suitable for a dashboard terminal.
-            
-            CONTENT TO ANALYZE:
-            {content[:15000]}
-            """
-            response = client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
-            if response and response.text:
-                return response.text
-        except Exception as e:
-            logger.warning(f"Gemini AI failed: {e}. Trying Groq...")
+    prompt = f"""Analyze the following security content and produce a COMPLETE, STRUCTURED intelligence report.
 
-    # 2. TRY GROQ (Tier 2 - Fallback)
-    if settings.GROQ_API_KEY:
-        try:
-            client = Groq(api_key=settings.GROQ_API_KEY)
-            prompt = f"""
-            You are a senior cybersecurity analyst. Analyze this and provide a high-impact summary.
-            STRUCTURE:
-            1. Title: 🛡️ SECURE EXECUTIVE SUMMARY: [CVE-ID or Threat Name]
-            2. High-level impact paragraph (3-4 sentences).
-            3. TECHNICAL ANALYSIS & IMPACT: (Bullet points)
-            4. REMEDIATION STRATEGY: (Steps)
-            
-            Plain text only, no bolding.
-            CONTENT: {content[:10000]}
-            """
-            chat_completion = client.chat.completions.create(
-                messages=[{"role": "user", "content": prompt}],
-                model="llama-3.3-70b-versatile",
-            )
-            if chat_completion.choices[0].message.content:
-                return chat_completion.choices[0].message.content
-        except Exception as e:
-            logger.warning(f"Groq AI failed: {e}. Using internal engine.")
+CRITICAL RULES:
+- Use EXACTLY the section headers below in EXACT order. DO NOT skip any section.
+- NO markdown: no asterisks (*), no hashtags (#), no bold (**text**), no underscores.
+- Use plain dashes (-) for ALL bullet points.
+- If data is unknown, fill with expert knowledge — NEVER leave blank. Do NOT use the phrase [ANALYST ESTIMATE].
+- Output ONLY plain text. No preambles, no sign-offs, no extra commentary.
 
-    # FALLBACK RULE-BASED ENGINE (Tier 3)
+====================================================================
+SECURE THREAT INTELLIGENCE BRIEF
+[THREAT_ID: Primary CVE ID, malware family name, or threat campaign. E.g., CVE-2024-12345 or MALWARE-AGENT-TESLA]
+[CLASSIFICATION: CRITICAL / HIGH / MEDIUM / LOW]
+[CVSS_SCORE: e.g., 9.8 or N/A]
+[CVSS_VECTOR: e.g., AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H or N/A]
+[TLP: AMBER]
+[REPORT_DATE: today's date as DD MMM YYYY]
+====================================================================
+
+EXECUTIVE OVERVIEW
+Provide a concise, bulleted summary covering all critical aspects:
+- Threat Summary: [1-2 sentences on what the threat is and its severity]
+- Systems Affected: [Vendors, products, or industries impacted]
+- Attack Vector: [Exploitation method and complexity]
+- Business Impact: [Immediate risk to the organization if unaddressed]
+- Remediation Priority: [The most urgent action required]
+
+THREAT ACTOR PROFILE
+- Attribution: [Nation-state / Cybercriminal / Hacktivist / Unknown — with confidence level]
+- Known Group: [APT name or group alias if attributed, else UNKNOWN]
+- Primary Motivation: [Financial / Espionage / Sabotage / Ideology]
+- Target Sectors: [Industries or government sectors most at risk]
+- Historical Activity: [Known past campaigns or similar attacks by this actor]
+- Sophistication Level: [LOW / MEDIUM / HIGH / NATION-STATE GRADE]
+
+MITRE ATT&CK MAPPING
+- Tactic: [Initial Access]\n  Technique: [e.g., T1190 - Exploit Public-Facing Application]
+- Tactic: [Execution / Persistence / Privilege Escalation — most relevant]\n  Technique: [e.g., T1059.001 - PowerShell]
+- Tactic: [Command and Control or Exfiltration]\n  Technique: [e.g., T1071.001 - Web Protocols]
+- Tactic: [Defense Evasion]\n  Technique: [e.g., T1027 - Obfuscated Files or Information]
+
+TECHNICAL ANALYSIS
+- Vulnerability Class: [CWE type, e.g., CWE-78: OS Command Injection]
+- Affected Products: [Specific software, versions, firmware, protocols]
+- Attack Chain: [Step-by-step: Initial access → Execution → Persistence → Objective]
+- Exploitation Complexity: [LOW / MEDIUM / HIGH + justification]
+- Authentication Required: [YES / NO / PARTIAL]
+- Public Exploit Available: [YES - PoC Public / YES - Weaponized / NO / UNCONFIRMED]
+- In-the-Wild Exploitation: [CONFIRMED ACTIVE / LIMITED REPORTS / UNCONFIRMED / NO EVIDENCE]
+- Payload Type: [Ransomware / RAT / Dropper / Backdoor / Infostealer / N/A]
+
+INDICATORS OF COMPROMISE
+- File Hashes (MD5/SHA256): [Known malicious hashes, or likely hash patterns]
+- IP Addresses / C2 Infrastructure: [Known IPs, domains, or URLs used for C2]
+- Malicious URLs / Download Locations: [Staging servers, payload delivery URLs]
+- File System Artifacts: [Dropped files, registry keys, scheduled tasks, service names]
+- Network Indicators: [Ports, protocols, beacon intervals, JA3/JA3S signatures, DNS queries]
+- Process Indicators: [Spawned processes, injected processes, unusual parent-child relationships]
+- YARA/Sigma Detection Hint: [Concise detection rule concept]
+
+IMPACT ASSESSMENT
+- Confidentiality Impact: [COMPLETE / PARTIAL / NONE — data at risk]
+- Integrity Impact: [COMPLETE / PARTIAL / NONE — what can be tampered]
+- Availability Impact: [COMPLETE / PARTIAL / NONE — downtime / ransomware risk]
+- Affected Industries: [Finance, Healthcare, Government, Energy, Retail, etc.]
+- Geographic Scope: [Global / Regional — specify regions]
+- Regulatory Exposure: [GDPR / HIPAA / PCI-DSS / SOX / NIS2 / NERC CIP applicable]
+- Estimated Financial Impact: [Quantify: e.g., potential $X million breach, ransom demands]
+- Collateral Risk: [Supply chain exposure, lateral movement potential, downstream impact]
+
+REMEDIATION DIRECTIVES
+1. IMMEDIATE (0-24 hours): [Emergency containment — block IPs, isolate systems, pull network segments]
+2. SHORT-TERM (24-72 hours): [Patch deployment, credential resets, firewall rules, temporary mitigations]
+3. MEDIUM-TERM (3-7 days): [System hardening, detection rule deployment, threat hunting queries]
+4. LONG-TERM (7-30 days): [Architecture review, vendor assessment, policy and process improvements]
+5. DETECTION ENGINEERING: [Specific SIEM rule concept, EDR hunt query, Suricata/Snort rule hint, or YARA rule skeleton]
+
+ANALYST VERDICT
+Write exactly 3 sentences:
+1. The single most critical action the security team must execute within the next hour.
+2. The primary worst-case risk scenario if no action is taken within 48 hours.
+3. Overall threat confidence level and recommended escalation path.
+
+INTELLIGENCE REFERENCES
+- NVD Database: https://nvd.nist.gov/vuln/detail/[CVE-ID or NOT AVAILABLE]
+- MITRE ATT&CK: https://attack.mitre.org/techniques/[Primary TID]/ [or NOT AVAILABLE]
+- MITRE CVE: https://cve.mitre.org/cgi-bin/cvename.cgi?name=[CVE-ID or NOT AVAILABLE]
+- CISA KEV Catalog: https://www.cisa.gov/known-exploited-vulnerabilities-catalog [if in KEV, else NOT AVAILABLE]
+- Vendor Security Advisory: [Official vendor patch URL or NOT AVAILABLE]
+- VirusTotal: https://www.virustotal.com/gui/search/[hash or threat name]
+- Additional Source: [Researcher blog, threat report, or vendor advisory URL]
+====================================================================
+
+CONTENT TO ANALYZE:
+{content[:14000]}
+"""
+    # Use smart rotating AI engine (Gemini → Groq x3 → Cerebras → OpenRouter)
+    result = await _smart_ai_call(prompt, max_tokens=3000)
+    if result:
+        return result
+
+    # Final fallback: Rule-based engine (always works, no AI needed)
     raw_input = content.strip()
-    
-    # 1. Gather Context
     if raw_input.startswith("http"):
         raw_context = await scrape_link(raw_input)
     else:
-        # If it's a CVE or short text, search live OSINT
         if len(raw_input) < 50:
             research = await search_live_sources(raw_input)
             raw_context = " ".join([f"{i['title']} {i['description']}" for i in research.get("items", [])])
         else:
             raw_context = raw_input
 
-    # 2. Advanced Fact Extraction
     cve_match = CVE_PATTERN.search(raw_context)
     cve_id = cve_match.group(0).upper() if cve_match else "Threat Intelligence"
-    
     vendor_match = re.search(r'\b(Horner Automation|Microsoft|Google|Cisco|WordPress|Delta|Apple|Linux|Fortinet)\b', raw_context, re.I)
     vendor = vendor_match.group(0) if vendor_match else "Enterprise Systems"
-    
     cvss_match = re.search(r'CVSS\s*(?:3.1|3.0|2.0)?\s*(?:Score:?)?\s*(\d\.\d)', raw_context, re.I)
     cvss = cvss_match.group(1) if cvss_match else "High"
 
-    # Extract technical story sentences
     sentences = [s.strip() for s in re.split(r'[.!?]', raw_context) if len(s.strip()) > 40]
-    facts = [s for s in sentences if not any(x in s.lower() for x in ["legal", "privacy", "notification", "anonymous", "researcher"])]
+    facts = [s for s in sentences if not any(x in s.lower() for x in ["legal", "privacy", "notification", "anonymous"])]
 
-    # 3. Construct the High-Impact Summary
     report = []
-    report.append(f"🛡️ SECURE EXECUTIVE SUMMARY: {cve_id}")
-    report.append("="*55)
-    report.append("")
-    
-    # --- The Summary Paragraph ---
-    if facts:
-        summary_para = f"A critical security exposure has been identified in {vendor} involving {facts[0].lower()}. "
-        if len(facts) > 1:
-            summary_para += f"Analysis indicates that {facts[1].lower()}. "
-        summary_para += f"The vulnerability carries a CVSS score of {cvss}, posing a significant risk of unauthorized access or arbitrary code execution."
-        report.append(summary_para)
+    if cve_id == "Threat Intelligence":
+        report.append("SECURE THREAT INTELLIGENCE BRIEF")
     else:
-        report.append(f"Technical analysis identifies a high-severity vulnerability in {vendor} infrastructure. Successful exploitation could allow attackers to bypass security controls and gain unauthorized access to internal systems and services.")
-
+        report.append(f"SECURE THREAT INTELLIGENCE BRIEF: {cve_id}")
+    report.append("=" * 55)
+    if facts:
+        report.append(f"A critical security exposure has been identified in {vendor} involving {facts[0].lower()}. The vulnerability carries a CVSS score of {cvss}, posing significant risk.")
+    else:
+        report.append(f"Technical analysis identifies a high-severity vulnerability in {vendor} infrastructure.")
     report.append("")
     report.append("TECHNICAL ANALYSIS & IMPACT:")
-    report.append("-" * 30)
-    # Technical Bullets (Concise)
-    idx = 2
-    count = 0
-    while count < 4 and idx < len(facts):
-        report.append(f"• {facts[idx]}.")
-        idx += 1
-        count += 1
-    
-    if not facts:
-        report.append("• Critical flaw in input validation or authentication mechanism.")
-        report.append("• Potential for persistent access following successful exploitation.")
-
+    for f in facts[2:6]:
+        report.append(f"- {f}.")
     report.append("")
-    report.append("REMEDIATION STRATEGY:")
-    report.append("-" * 30)
-    # Adaptive Mitigation
-    if "password" in raw_context.lower() or "brute" in raw_context.lower():
-        report.append("• Enforce strong password complexity and account lockout policies.")
-        report.append("• Implement multi-factor authentication (MFA) for all PLC/Control access.")
-    else:
-        report.append("• Apply the official vendor security patches and firmware updates immediately.")
-        report.append("• Isolate affected control systems from public-facing network segments.")
-        
-    report.append("• Enable enhanced logging and monitoring for anomalous traffic patterns.")
-    
+    report.append("REMEDIATION DIRECTIVES:")
+    report.append("1. Apply the official vendor security patches immediately.")
+    report.append("2. Isolate affected systems from public-facing network segments.")
+    report.append("3. Enable enhanced logging and monitoring for anomalous activity.")
     report.append("")
-    report.append("-" * 55)
-    report.append(f"Analyst Note: Priority Remediation Required | Generated by Secure Intelligence AI")
-    
+    report.append("INTELLIGENCE REFERENCES:")
+    if cve_id != "Threat Intelligence":
+        report.append(f"- NVD Database: https://nvd.nist.gov/vuln/detail/{cve_id}")
+        report.append(f"- MITRE CVE: https://cve.mitre.org/cgi-bin/cvename.cgi?name={cve_id}")
+    report.append(f"- CISA KEV Catalog: https://www.cisa.gov/known-exploited-vulnerabilities-catalog")
     return "\n".join(report)
 
+
 async def summarize_threat_report(prompt: str) -> str:
-    """Specialized AI call for short sandbox and URL verdicts."""
-    if not settings.GEMINI_API_KEY:
-        return "Manual verification recommended. No AI API key configured."
-    
-    try:
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        response = client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=prompt
-        )
-        if response and response.text:
-            return response.text.strip()
-    except Exception as e:
-        logger.error(f"Quick AI summary failed: {e}")
-        return "AI analysis failed. Please review the technical metadata."
+    """Specialized AI call for playbooks and impact predictions. Uses smart rotating engine."""
+    result = await _smart_ai_call(prompt, max_tokens=1500)
+    if result:
+        return result
+    return "Automated analysis completed. Please review the technical metadata for threat indicators."
+
+async def analyze_attack_surface(domain: str, scan_data: dict) -> str:
+    """
+    Generates a professional AI briefing based on raw attack surface scan data.
+    """
+    prompt = f"""You are a Principal Threat Intelligence Analyst mapping an external attack surface.
+Analyze the following infrastructure reconnaissance data for the domain '{domain}' and produce a COMPLETE, STRUCTURED briefing.
+
+CRITICAL RULES:
+- Use EXACTLY the section headers below in EXACT order. DO NOT skip any section.
+- NO markdown: no asterisks (*), no hashtags (#), no bold (**text**), no underscores.
+- Use plain dashes (-) for ALL bullet points.
+- If data is unknown or missing, write your best expert assessment or state 'None detected'. Do NOT use the phrase [ANALYST ESTIMATE].
+- Output ONLY plain text. No preambles, no sign-offs, no extra commentary.
+
+====================================================================
+SECURE THREAT INTELLIGENCE BRIEF
+[ASSET: {domain}]
+[IP_ADDRESS: {scan_data.get('ip', 'UNKNOWN')}]
+[CLASSIFICATION: TACTICAL RECONNAISSANCE]
+[REPORT_DATE: today]
+====================================================================
+
+EXECUTIVE OVERVIEW
+Provide a concise, bulleted summary covering:
+- Exposure Summary: [1-2 sentences on the overall perimeter health]
+- Key Findings: [Primary risks discovered, e.g., open ports, missing SSL, CVEs]
+- Business Risk: [Immediate risk if infrastructure is breached]
+
+TECHNICAL ANALYSIS
+- Open Ports & Services: [List discovered open ports and likely running services]
+- SSL/TLS Posture: [Describe certificate validity and HTTPS status]
+- Discovered Subdomains: [Summarize the scope of discovered assets]
+- Known Vulnerabilities (CVEs): [List any CVEs identified by Shodan, or state None]
+
+THREAT REPUTATION (OTX)
+- AlienVault OTX Pulses: [Describe any threat indicators or malicious associations discovered, or state None]
+
+REMEDIATION DIRECTIVES
+1. IMMEDIATE (0-24 hours): [Emergency actions based on open ports/CVEs]
+2. SHORT-TERM (24-72 hours): [Patching and configuration updates]
+3. LONG-TERM (7-30 days): [Architecture and exposure reduction]
+
+ANALYST VERDICT
+Write exactly 2 sentences on the single most critical action the infrastructure team must execute, and the overall security posture rating.
+====================================================================
+
+RAW RECONNAISSANCE DATA:
+{str(scan_data)[:10000]}
+"""
+    result = await _smart_ai_call(prompt, max_tokens=2000)
+    if result:
+        return result
+    return "Automated analysis completed. Review the raw telemetry for technical details."

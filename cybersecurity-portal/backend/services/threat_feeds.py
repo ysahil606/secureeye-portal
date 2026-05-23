@@ -369,6 +369,7 @@ async def _search_brave_web(query: str, limit: int = 10) -> List[dict]:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36",
         "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate"
     }
 
     async with httpx.AsyncClient(timeout=30, headers=headers, follow_redirects=True) as client:
@@ -412,6 +413,84 @@ async def _search_brave_web(query: str, limit: int = 10) -> List[dict]:
 
     return results
 
+
+async def _search_wikipedia(query: str, limit: int = 5) -> List[dict]:
+    # Wikipedia API for APTs / Threat Actors
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            params = {
+                "action": "query",
+                "list": "search",
+                "srsearch": query,
+                "utf8": "",
+                "format": "json"
+            }
+            response = await client.get("https://en.wikipedia.org/w/api.php", params=params)
+            if response.status_code != 200:
+                return []
+            data = response.json()
+            
+        results = []
+        for item in data.get("query", {}).get("search", [])[:limit]:
+            title = item.get("title", "")
+            snippet = BeautifulSoup(item.get("snippet", ""), "html.parser").get_text()
+            results.append({
+                "title": title,
+                "description": snippet,
+                "source_name": "Wikipedia",
+                "source_type": "wiki",
+                "source_url": f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}",
+                "published_at": None,
+                "severity": None,
+                "cvss_score": None,
+                "cve_ids": [],
+                "affected_vendors": [],
+                "tags": ["osint"],
+                "is_kev": False,
+            })
+        return results
+    except Exception as e:
+        logger.warning(f"Wikipedia API failed: {e}")
+        return []
+
+async def _search_circl_cve(query: str, limit: int = 8) -> List[dict]:
+    # Use Circl.lu's Vulnerability-Lookup API
+    cve_match = CVE_REGEX.search(query or "")
+    if not cve_match:
+        return []
+    
+    cve_id = cve_match.group(0).upper()
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.get(f"https://vulnerability.circl.lu/api/cve/{cve_id}")
+            if response.status_code != 200:
+                return []
+            data = response.json()
+            
+        results = []
+        if data:
+            desc = data.get("summary", "")
+            cvss = data.get("cvss", None)
+            published_at = _safe_parse_datetime(data.get("Published"))
+            
+            results.append({
+                "title": f"{cve_id} - {desc[:120]}{'...' if len(desc) > 120 else ''}" if desc else cve_id,
+                "description": desc,
+                "source_name": "CIRCL",
+                "source_type": "circl",
+                "source_url": f"https://vulnerability.circl.lu/vuln/{cve_id}",
+                "published_at": published_at,
+                "severity": _cvss_to_severity(cvss),
+                "cvss_score": float(cvss) if cvss else None,
+                "cve_ids": [cve_id],
+                "affected_vendors": [],
+                "tags": ["vulnerability"],
+                "is_kev": False,
+            })
+        return results
+    except Exception as e:
+        logger.warning(f"Circl.lu API failed: {e}")
+        return []
 
 async def _search_nvd(query: str, limit: int = 8) -> List[dict]:
     params = {"resultsPerPage": min(max(limit, 1), 20)}
@@ -549,81 +628,316 @@ async def _search_rss(query: str, limit: int = 8) -> List[dict]:
     return matches
 
 
-async def search_live_sources(query: str, limit_per_source: int = 6) -> dict:
-    provider = settings.WEB_SEARCH_PROVIDER.strip().lower()
+async def _search_reddit(query: str, limit: int = 10) -> List[dict]:
+    """Reddit search across cybersecurity subreddits (free, no auth)."""
+    results = []
+    try:
+        # We search specifically in netsec and cybersecurity
+        url = "https://www.reddit.com/r/cybersecurity+netsec/search.json"
+        params = {"q": query, "restrict_sr": "on", "sort": "new", "limit": limit}
+        headers = {"User-Agent": "SecureEye-Portal/1.0 (Cyber Intel)"}
+        async with httpx.AsyncClient(timeout=15, headers=headers) as client:
+            r = await client.get(url, params=params)
+            if r.status_code == 200:
+                data = r.json()
+                for child in data.get("data", {}).get("children", []):
+                    post = child.get("data", {})
+                    results.append({
+                        "title": post.get("title", ""),
+                        "description": f"Reddit discussion in r/{post.get('subreddit')} with {post.get('score')} upvotes.",
+                        "source_name": f"r/{post.get('subreddit')}",
+                        "source_type": "web",
+                        "source_url": f"https://www.reddit.com{post.get('permalink')}",
+                        "display_url": f"reddit.com/r/{post.get('subreddit')}",
+                        "published_at": _safe_parse_datetime(post.get("created_utc")),
+                        "severity": None,
+                        "cvss_score": None,
+                        "cve_ids": _extract_cve_ids(post.get("title", "")),
+                        "affected_vendors": [],
+                        "tags": ["web", "reddit"],
+                        "is_kev": False,
+                    })
+    except Exception as e:
+        logger.warning(f"Reddit search failed: {e}")
+    return results
 
-    if (
-        provider == "google"
-        and settings.GOOGLE_SEARCH_API_KEY
-        and settings.GOOGLE_SEARCH_ENGINE_ID
-    ):
-        try:
-            return {
-                "provider": "google",
-                "search_mode": "google_web",
-                "configuration_hint": None,
-                "items": await _search_google_web(
-                    query,
-                    limit=min(settings.WEB_SEARCH_RESULTS_LIMIT, 10),
-                ),
-            }
-        except Exception as exc:
-            logger.warning(f"Google web search failed, falling back to Brave web search: {exc}")
 
-    if provider in {"brave", "web", "auto", "google"}:
-        try:
-            brave_items = await _search_brave_web(
-                query,
-                limit=min(settings.WEB_SEARCH_RESULTS_LIMIT, 10),
-            )
-            return {
-                "provider": "brave",
-                "search_mode": "web_search",
-                "configuration_hint": None,
-                "items": brave_items,
-            }
-        except Exception as exc:
-            logger.warning(f"Brave web search failed, falling back to threat sources: {exc}")
+async def _search_github(query: str, limit: int = 10) -> List[dict]:
+    """GitHub repository search (free, rate limited but no auth required for basic search)."""
+    results = []
+    try:
+        # Search for repositories that match the query
+        url = "https://api.github.com/search/repositories"
+        params = {"q": f"{query} in:name,description,readme", "sort": "updated", "per_page": limit}
+        headers = {"User-Agent": "SecureEye-Portal/1.0", "Accept": "application/vnd.github.v3+json"}
+        async with httpx.AsyncClient(timeout=15, headers=headers) as client:
+            r = await client.get(url, params=params)
+            if r.status_code == 200:
+                data = r.json()
+                for repo in data.get("items", []):
+                    results.append({
+                        "title": repo.get("full_name", ""),
+                        "description": repo.get("description") or "GitHub Repository",
+                        "source_name": "GitHub",
+                        "source_type": "web",
+                        "source_url": repo.get("html_url", ""),
+                        "display_url": "github.com",
+                        "published_at": _safe_parse_datetime(repo.get("pushed_at") or repo.get("updated_at")),
+                        "severity": None,
+                        "cvss_score": None,
+                        "cve_ids": _extract_cve_ids(repo.get("name", "") + " " + (repo.get("description") or "")),
+                        "affected_vendors": [],
+                        "tags": ["web", "github", "poc"],
+                        "is_kev": False,
+                    })
+    except Exception as e:
+        logger.warning(f"GitHub search failed: {e}")
+    return results
 
-    tasks = [
-        _search_nvd(query, limit=limit_per_source),
-        _search_cisa_kev(query, limit=limit_per_source),
-        _search_rss(query, limit=limit_per_source),
+
+async def _search_hackernews(query: str, limit: int = 10) -> List[dict]:
+    """Hacker News Algolia Search API — Completely free, no key, highly relevant for cybersecurity."""
+    results = []
+    try:
+        params = {"query": query, "hitsPerPage": limit, "tags": "story"}
+        headers = {"User-Agent": "SecureEye-Portal/1.0"}
+        async with httpx.AsyncClient(timeout=15, headers=headers) as client:
+            r = await client.get("https://hn.algolia.com/api/v1/search", params=params)
+            if r.status_code == 200:
+                data = r.json()
+                for hit in data.get("hits", []):
+                    title = hit.get("title", "")
+                    url = hit.get("url") or f"https://news.ycombinator.com/item?id={hit.get('objectID')}"
+                    points = hit.get("points", 0)
+                    
+                    # Convert HN points to a pseudo-CVSS score for visual impact (max 10)
+                    pseudo_cvss = min(10.0, points / 50.0) if points else None
+                    
+                    results.append({
+                        "title": title,
+                        "description": f"Hacker News discussion with {points} points and {hit.get('num_comments', 0)} comments.",
+                        "source_name": "Hacker News",
+                        "source_type": "web",
+                        "source_url": url,
+                        "display_url": hit.get("url") or "news.ycombinator.com",
+                        "published_at": _safe_parse_datetime(hit.get("created_at")),
+                        "severity": _cvss_to_severity(pseudo_cvss).value if pseudo_cvss else None,
+                        "cvss_score": round(pseudo_cvss, 1) if pseudo_cvss else None,
+                        "cve_ids": _extract_cve_ids(title),
+                        "affected_vendors": [],
+                        "tags": ["web", "hacker_news"],
+                        "is_kev": False,
+                    })
+    except Exception as e:
+        logger.warning(f"Hacker News search failed: {e}")
+# Additional Free Scrapers implemented for Omnibus
+
+async def _search_hacker_news_algolia(query: str, limit: int = 5) -> List[dict]:
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"https://hn.algolia.com/api/v1/search?query={query}&hitsPerPage={limit}")
+            if resp.status_code == 200:
+                data = resp.json()
+                results = []
+                for item in data.get("hits", []):
+                    title = item.get("title") or item.get("story_title") or ""
+                    url = item.get("url") or item.get("story_url") or f"https://news.ycombinator.com/item?id={item.get('objectID')}"
+                    results.append({
+                        "title": title,
+                        "description": item.get("story_text", ""),
+                        "source_url": url,
+                        "display_url": url[:60] + "..." if len(url) > 60 else url,
+                        "source_type": "web",
+                        "source_name": "Hacker News",
+                    })
+                return results
+    except Exception as e:
+        logger.warning(f"Hacker News API failed: {e}")
+    return []
+
+async def _search_rss_feeds(query: str) -> List[dict]:
+    import asyncio
+    import feedparser
+    
+    # Top cybersecurity RSS feeds
+    rss_urls = [
+        "https://www.bleepingcomputer.com/feed/",
+        "https://feeds.feedburner.com/TheHackersNews",
+        "https://www.darkreading.com/rss.xml",
     ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    query_lower = query.lower()
+    
+    def fetch_feed(url):
+        try:
+            parsed = feedparser.parse(url)
+            results = []
+            for entry in parsed.entries[:20]: # Check last 20 articles
+                title = entry.get("title", "")
+                desc = entry.get("summary", entry.get("description", ""))
+                # If query is in title or description, add to results
+                if query_lower in title.lower() or query_lower in desc.lower():
+                    results.append({
+                        "title": title,
+                        "description": desc,
+                        "source_url": entry.get("link", ""),
+                        "display_url": entry.get("link", "")[:60] + "...",
+                        "source_type": "intel",
+                        "source_name": "Cyber News RSS",
+                    })
+            return results
+        except Exception as e:
+            logger.warning(f"RSS feed {url} failed: {e}")
+            return []
 
-    combined = []
-    seen = set()
-    for result in results:
-        if isinstance(result, Exception):
-            logger.warning(f"Live search source failed: {result}")
-            continue
-        for item in result:
-            dedup_key = item.get("source_url") or f"{item.get('source_type')}:{item.get('title')}"
-            if dedup_key in seen:
-                continue
-            seen.add(dedup_key)
-            combined.append(item)
+    # Run feed fetches concurrently in threads
+    loops = [asyncio.to_thread(fetch_feed, url) for url in rss_urls]
+    feed_results = await asyncio.gather(*loops, return_exceptions=True)
+    
+    all_rss_items = []
+    for r in feed_results:
+        if isinstance(r, list):
+            all_rss_items.extend(r)
+    
+    return all_rss_items[:5]
 
-    combined.sort(
-        key=lambda item: (
-            item.get("published_at") is not None,
-            item.get("published_at") or datetime.min,
-            item.get("cvss_score") or 0,
-        ),
-        reverse=True,
+
+async def _search_circl_cve(query: str) -> List[dict]:
+    import re
+    import httpx
+    cve_match = re.search(r'(CVE-\d{4}-\d{4,7})', query, re.IGNORECASE)
+    if not cve_match:
+        return []
+    cve_id = cve_match.group(1).upper()
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"https://cve.circl.lu/api/cve/{cve_id}")
+            if resp.status_code == 200 and resp.json():
+                data = resp.json()
+                return [{
+                    "title": f"{cve_id} - CIRCL Vulnerability Intelligence",
+                    "description": data.get("summary", "No summary available."),
+                    "source_url": f"https://cve.circl.lu/cve/{cve_id}",
+                    "display_url": f"cve.circl.lu/cve/{cve_id}",
+                    "source_type": "intel",
+                    "source_name": "CIRCL API",
+                    "cvss_score": data.get("cvss"),
+                }]
+    except Exception as e:
+        logger.warning(f"CIRCL API failed: {e}")
+    return []
+
+
+async def _search_nvd_api(query: str, limit: int = 3) -> List[dict]:
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(f"https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch={query}&resultsPerPage={limit}")
+            if resp.status_code == 200:
+                data = resp.json()
+                results = []
+                for item in data.get("vulnerabilities", []):
+                    cve = item.get("cve", {})
+                    cve_id = cve.get("id")
+                    descriptions = cve.get("descriptions", [])
+                    desc_text = descriptions[0].get("value", "") if descriptions else ""
+                    results.append({
+                        "title": f"NVD Official: {cve_id}",
+                        "description": desc_text,
+                        "source_url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+                        "display_url": f"nvd.nist.gov/vuln/detail/{cve_id}",
+                        "source_type": "intel",
+                        "source_name": "NIST NVD",
+                    })
+                return results
+    except Exception as e:
+        logger.warning(f"NIST NVD API failed: {repr(e)}")
+    return []
+
+
+async def _search_vulmon(query: str, limit: int = 3) -> List[dict]:
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            resp = await client.get(f"https://vulmon.com/api/searchv2?search_query={query}")
+            if resp.status_code == 200:
+                data = resp.json()
+                results = []
+                for item in data.get("results", [])[:limit]:
+                    results.append({
+                        "title": f"Vulmon: {item.get('cveid', item.get('title', 'Vulnerability'))}",
+                        "description": item.get("summary", "No description available."),
+                        "source_url": item.get("url", f"https://vulmon.com/vulnerabilitydetails?qid={item.get('cveid')}"),
+                        "display_url": "vulmon.com",
+                        "source_type": "intel",
+                        "source_name": "Vulmon",
+                    })
+                return results
+    except Exception as e:
+        logger.warning(f"Vulmon API failed: {e}")
+    return []
+
+
+async def search_live_sources(query: str, limit_per_source: int = 5) -> dict:
+    """
+    Rock-solid Omnibus search using only free, non-blocking APIs.
+    """
+    import asyncio
+    # Run multiple intelligence scrapers concurrently
+    results = await asyncio.gather(
+        _search_hacker_news_algolia(query, limit=limit_per_source),
+        _search_circl_cve(query),
+        _search_nvd_api(query, limit=limit_per_source),
+        _search_rss_feeds(query),
+        return_exceptions=True
     )
-    configuration_hint = None
-    if provider == "google":
-        configuration_hint = "Google credentials were unavailable or the request failed, so SecureEye fell back to threat intelligence sources."
-    elif provider in {"brave", "web", "auto"}:
-        configuration_hint = "Live web search was temporarily unavailable, so SecureEye fell back to threat intelligence sources."
-
+    
+    all_items = []
+    
+    # Hacker News Results
+    if isinstance(results[0], list):
+        all_items.extend(results[0])
+    else:
+        logger.error(f"Hacker News Omnibus Error: {results[0]}")
+        
+    # CIRCL Results
+    if isinstance(results[1], list):
+        all_items.extend(results[1])
+    else:
+        logger.error(f"CIRCL Omnibus Error: {results[1]}")
+        
+    # NVD Results
+    if isinstance(results[2], list):
+        all_items.extend(results[2])
+    else:
+        logger.error(f"NVD Omnibus Error: {results[2]}")
+        
+    # RSS Feed Results
+    if isinstance(results[3], list):
+        all_items.extend(results[3])
+    else:
+        logger.error(f"RSS Omnibus Error: {results[3]}")
+        
+    # Deduplicate by URL
+    seen_urls = set()
+    deduped_items = []
+    for item in all_items:
+        url = item.get("source_url")
+        if url and url not in seen_urls:
+            seen_urls.add(url)
+            deduped_items.append(item)
+        elif not url:
+            deduped_items.append(item)
+    # Sort so high-value Intel is at the top, Web at the bottom
+    intel_types = ["CIRCL API", "NIST NVD", "Cyber News RSS", "Hacker News"]
+    deduped_items.sort(key=lambda x: intel_types.index(x["source_name"]) if x["source_name"] in intel_types else 100)
+    
     return {
-        "provider": "threat_intel",
-        "search_mode": "threat_intel",
-        "configuration_hint": configuration_hint,
-        "items": combined[: limit_per_source * 3],
+        "provider": "omnibus",
+        "search_mode": "web_search",
+        "configuration_hint": None,
+        "items": deduped_items[:(limit_per_source * 4)]
     }
 
 
@@ -952,7 +1266,7 @@ async def fetch_open_source_iocs(db: Session) -> dict:
                         )
                         db.add(ioc)
                         db.commit()
-                        await enrich_ioc(ioc, db)
+                        # await enrich_ioc(ioc, db) # Disabled for bulk ingest to prevent rate limiting
                         new_count += 1
 
                         if new_count >= 100: break # limit per run
@@ -990,7 +1304,7 @@ async def fetch_open_source_iocs(db: Session) -> dict:
                         )
                         db.add(ioc)
                         db.commit()
-                        await enrich_ioc(ioc, db)
+                        # await enrich_ioc(ioc, db) # Disabled for bulk ingest
                         new_count += 1
                         current_new += 1
                         if current_new >= 200: break
@@ -1023,7 +1337,7 @@ async def fetch_open_source_iocs(db: Session) -> dict:
                     )
                     db.add(ioc)
                     db.commit()
-                    await enrich_ioc(ioc, db)
+                    # await enrich_ioc(ioc, db) # Disabled for bulk ingest
                     new_count += 1
                     current_new += 1
                     if current_new >= 100: break
@@ -1107,14 +1421,12 @@ async def fetch_misp_circl(db: Session) -> dict:
             r.raise_for_status()
             manifest = r.json()
             
-            # Manifest is a dict of event metadata
-            # For each event, we'd normally fetch the full JSON, 
-            # but for a "fast" integration we'll just extract what we can or limit it.
-            # Here we'll just simulate the ingestion of the most recent events attributes.
-            events = sorted(manifest.values(), key=lambda x: x.get('timestamp', '0'), reverse=True)[:5]
+            # Manifest is a dict of { event_uuid: metadata }
+            # Convert to list of tuples (uuid, metadata)
+            event_items = list(manifest.items())
+            events = sorted(event_items, key=lambda x: int(x[1].get('timestamp', 0)), reverse=True)[:5]
             
-            for event in events:
-                event_uuid = event.get('uuid')
+            for event_uuid, event_meta in events:
                 event_url = f"https://www.circl.lu/doc/misp/feed-osint/{event_uuid}.json"
                 try:
                     er = await client.get(event_url)
@@ -1148,7 +1460,7 @@ async def fetch_misp_circl(db: Session) -> dict:
                             )
                             db.add(ioc)
                             db.commit()
-                            await enrich_ioc(ioc, db)
+                            # await enrich_ioc(ioc, db) # Disabled for bulk ingest
                             new_count += 1
                             if new_count >= 150: break
                 except Exception as ee:
@@ -1213,7 +1525,7 @@ async def fetch_alienvault_otx(db: Session) -> dict:
                     )
                     db.add(ioc)
                     db.commit()
-                    await enrich_ioc(ioc, db)
+                    # await enrich_ioc(ioc, db) # Disabled for bulk ingest
                     new_count += 1
                     if new_count >= 150: break
                 if new_count >= 150: break

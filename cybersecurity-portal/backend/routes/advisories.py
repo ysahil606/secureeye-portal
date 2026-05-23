@@ -184,18 +184,20 @@ async def smart_search(
     external_search = await threat_feeds.search_live_sources(q, limit_per_source=4)
     external_items = external_search["items"]
     configuration_hint = external_search.get("configuration_hint")
+    external_provider = external_search["provider"]
+    search_mode = external_search["search_mode"]
+    
     if (
         settings.WEB_SEARCH_PROVIDER.strip().lower() == "google"
         and (not settings.GOOGLE_SEARCH_API_KEY or not settings.GOOGLE_SEARCH_ENGINE_ID)
     ):
-        configuration_hint = "Add GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_ENGINE_ID in backend/.env to enable Google-style web search."
-
+        configuration_hint = "Add GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_ENGINE_ID in backend/.env to enable Google-style web search. Currently using DuckDuckGo."
     return SmartSearchOut(
         query=q,
         local_items=items,
         external_items=[ExternalSearchResultOut(**item) for item in external_items],
-        external_provider=external_search["provider"],
-        search_mode=external_search["search_mode"],
+        external_provider=external_provider,
+        search_mode=search_mode,
         configuration_hint=configuration_hint,
         local_total=local_total,
         external_total=len(external_items),

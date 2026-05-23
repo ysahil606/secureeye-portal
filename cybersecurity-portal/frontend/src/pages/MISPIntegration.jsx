@@ -1,6 +1,47 @@
+import { useState, useEffect } from 'react'
 import { Shield, ExternalLink, RefreshCw, Database, Terminal, Network } from 'lucide-react'
+import api from '../services/api'
 
 export default function MISPIntegration() {
+  const [loading, setLoading] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [stats, setStats] = useState({ CIRCL: 0, OTX: 0 })
+  const [logs, setLogs] = useState([])
+
+  const fetchStatus = async () => {
+    try {
+      const res = await api.get('/advanced/misp/status')
+      setStats(res.data.stats || { CIRCL: 0, OTX: 0 })
+      setLogs(res.data.logs || [])
+    } catch (err) {
+      console.error("Failed to fetch MISP status:", err)
+    }
+  }
+
+  useEffect(() => {
+    fetchStatus()
+    const interval = setInterval(fetchStatus, 30000) // refresh every 30s
+    return () => clearInterval(interval)
+  }, [])
+
+  const handleSync = async () => {
+    setSyncing(true)
+    try {
+      await api.post('/advanced/misp/sync')
+      await fetchStatus()
+    } catch (err) {
+      console.error("Failed to sync MISP:", err)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const formatLogTime = (isoString) => {
+    if (!isoString) return ''
+    const d = new Date(isoString)
+    return `[${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}]`
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -8,9 +49,9 @@ export default function MISPIntegration() {
           <h1 className="text-2xl font-bold text-white tracking-tight">MISP Integration</h1>
           <p className="text-slate-400 mt-1">Malware Information Sharing Platform & Open Threat Exchange</p>
         </div>
-        <button className="btn-primary flex items-center gap-2">
-          <RefreshCw className="w-4 h-4" />
-          Sync All Instances
+        <button onClick={handleSync} disabled={syncing} className="btn-primary flex items-center gap-2">
+          <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+          {syncing ? 'Syncing...' : 'Sync All Instances'}
         </button>
       </div>
 
@@ -31,7 +72,7 @@ export default function MISPIntegration() {
           </p>
           <div className="flex items-center justify-between text-xs">
             <div className="flex gap-4">
-              <span className="text-slate-500"><Database className="w-3 h-3 inline mr-1" /> 2.4k IOCs</span>
+              <span className="text-slate-500"><Database className="w-3 h-3 inline mr-1" /> {stats.CIRCL.toLocaleString()} IOCs</span>
               <span className="text-slate-500"><RefreshCw className="w-3 h-3 inline mr-1" /> 15m interval</span>
             </div>
             <a href="https://www.circl.lu/" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline flex items-center gap-1">
@@ -56,7 +97,7 @@ export default function MISPIntegration() {
           </p>
           <div className="flex items-center justify-between text-xs">
             <div className="flex gap-4">
-              <span className="text-slate-500"><Database className="w-3 h-3 inline mr-1" /> 5.1k IOCs</span>
+              <span className="text-slate-500"><Database className="w-3 h-3 inline mr-1" /> {stats.OTX.toLocaleString()} IOCs</span>
               <span className="text-slate-500"><RefreshCw className="w-3 h-3 inline mr-1" /> 15m interval</span>
             </div>
             <a href="https://otx.alienvault.com/" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline flex items-center gap-1">
@@ -71,22 +112,22 @@ export default function MISPIntegration() {
           <Terminal className="w-4 h-4 text-blue-400" />
           <span className="text-sm font-bold text-white uppercase tracking-wider">Live MISP Log Stream</span>
         </div>
-        <div className="p-6 font-mono text-xs space-y-2 bg-black/20">
-          <div className="flex gap-3">
-            <span className="text-slate-600">[2026-05-18 15:15:02]</span>
-            <span className="text-blue-400">INFO</span>
-            <span className="text-slate-300">Synchronizing CIRCL manifest...</span>
-          </div>
-          <div className="flex gap-3 text-green-400/80">
-            <span className="text-slate-600">[2026-05-18 15:15:05]</span>
-            <span className="text-green-400">SUCCESS</span>
-            <span className="text-slate-300">Ingested 142 new attributes from event 5f2a1...</span>
-          </div>
-          <div className="flex gap-3">
-            <span className="text-slate-600">[2026-05-18 15:15:10]</span>
-            <span className="text-blue-400">INFO</span>
-            <span className="text-slate-300">Polling AlienVault OTX API...</span>
-          </div>
+        <div className="p-6 font-mono text-xs space-y-2 bg-black/20 max-h-96 overflow-y-auto">
+          {logs.length === 0 ? (
+            <div className="text-slate-500 italic">No recent sync logs found.</div>
+          ) : (
+            logs.map(log => (
+              <div key={log.id} className="flex gap-3 items-start">
+                <span className="text-slate-600 whitespace-nowrap">{formatLogTime(log.timestamp)}</span>
+                <span className={log.status === 'success' ? 'text-green-400' : log.status === 'running' ? 'text-blue-400' : 'text-red-400'}>
+                  {log.status.toUpperCase()}
+                </span>
+                <span className="text-slate-300">
+                  [{log.source}] {log.status === 'success' ? `Ingested ${log.items_new} new indicators. Duplicates skipped: ${log.items_duplicate}` : log.status === 'error' ? log.error_msg : 'Synchronization in progress...'}
+                </span>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

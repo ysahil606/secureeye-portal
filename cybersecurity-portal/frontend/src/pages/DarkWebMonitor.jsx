@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   Activity, AlertTriangle, CheckCircle2, Copy, Database, Download, Eye,
-  Ghost, Globe, Loader2, Lock, Mail, Plus, Search, ShieldCheck, Trash2
+  ExternalLink, Ghost, Globe, Loader2, Lock, Mail, Plus, Search, ShieldCheck, ShieldAlert, Trash2
 } from 'lucide-react'
 import api from '../services/api'
 import toast from 'react-hot-toast'
@@ -48,28 +48,8 @@ export default function DarkWebMonitor() {
     try {
       const res = await api.get('/darkweb/scan', { params: { q: normalized } })
       setResults(res.data)
-    } catch {
-      await new Promise(resolve => setTimeout(resolve, 1200))
-      setResults({
-        query: normalized,
-        scanned_at: new Date().toISOString(),
-        exposure_level: 'Simulation',
-        recommendations: [
-          'Force password reset for exposed identities.',
-          'Review MFA enrollment and recent sign-in logs.',
-          'Search SIEM, DNS, EDR, and proxy logs for related indicators.',
-        ],
-        leaks: [
-          { id: `admin-${normalized}`, email: `admin@${normalized}`, source: 'Credential stuffing list', date: '2024-03-12', severity: 'critical' },
-          { id: `devops-${normalized}`, email: `devops@${normalized}`, source: 'Stealer log index', date: '2024-04-10', severity: 'high' },
-          { id: `hr-${normalized}`, email: `hr@${normalized}`, source: 'Public paste archive', date: '2023-11-05', severity: 'medium' },
-        ],
-        mentions: [
-          { id: `infra-${normalized}`, title: `Discussion regarding ${normalized} infrastructure`, snippet: 'Potential external exposure mentioned in a simulated source.', onion_site: 'simulation', severity: 'high' },
-          { id: `dump-${normalized}`, title: `Database dump claim for ${normalized}`, snippet: 'Unverified marketplace claim detected in demo mode.', onion_site: 'simulation', severity: 'critical' },
-        ],
-      })
-      toast.success('Simulation loaded because backend scan was unavailable')
+    } catch (error) {
+      toast.error('Dark web scan failed. Backend may be unavailable.')
     } finally {
       setScanning(false)
     }
@@ -117,46 +97,70 @@ export default function DarkWebMonitor() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <div className="p-2 bg-purple-600/20 border border-purple-500/30 rounded-lg">
-              <Ghost className="w-6 h-6 text-purple-400" />
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-4 border-b border-white/5">
+        <div className="relative">
+          <div className="absolute -inset-4 bg-purple-500/10 blur-2xl rounded-full" />
+          <h1 className="relative text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 flex items-center gap-4">
+            <div className="p-3 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl shadow-neon-purple text-white">
+              <Ghost className="w-8 h-8" />
             </div>
-            Dark Web Monitor
+            Dark Web Surveillance
           </h1>
-          <p className="text-slate-400 mt-1">Leak detection, watchlists, and exposure triage for monitored domains.</p>
+          <p className="relative text-slate-400 mt-2 text-sm max-w-xl leading-relaxed">
+            Real-time credential leak detection, hacker forum tracking, and exposure triage powered by SecureEye intelligence networks.
+          </p>
         </div>
       </div>
 
-      <div className="bg-dark-800 border border-dark-600 rounded-2xl p-6 shadow-xl">
-        <form onSubmit={handleScan} className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Enter domain or organization, e.g. target.com"
-              className="input pl-12 py-3.5 text-base"
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-              disabled={scanning}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={scanning || !domain.trim()}
-            className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold px-8 py-3.5 rounded-xl transition-all shadow-lg shadow-purple-900/20 flex items-center justify-center gap-2"
-          >
-            {scanning ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-            Start Surveillance
-          </button>
-        </form>
+      <div className="relative z-10 p-[2px] rounded-3xl bg-gradient-to-r from-purple-500/30 via-transparent to-pink-500/30">
+        <div className="bg-dark-900/90 backdrop-blur-2xl rounded-[22px] p-8 shadow-glass">
+          <form onSubmit={handleScan} className="flex flex-col md:flex-row gap-6 relative">
+            <div className="relative flex-1 group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200" />
+              <div className="relative flex items-center">
+                <Globe className="absolute left-6 w-6 h-6 text-purple-400 animate-pulse" />
+                <input
+                  type="text"
+                  placeholder="Target domain (e.g., target.com) or email address..."
+                  className="w-full bg-dark-950/80 border border-white/5 text-white rounded-2xl pl-16 pr-6 py-5 text-lg placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 shadow-inner transition-all"
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value)}
+                  disabled={scanning}
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              disabled={scanning || !domain.trim()}
+              className="md:w-auto w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white font-black px-10 py-5 rounded-2xl transition-all shadow-neon-purple flex items-center justify-center gap-3 text-lg uppercase tracking-wider group"
+            >
+              {scanning ? (
+                <Loader2 className="w-6 h-6 animate-spin" />
+              ) : (
+                <Search className="w-6 h-6 group-hover:scale-110 transition-transform" />
+              )}
+              Initiate Scan
+            </button>
+          </form>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="card p-4"><div className="text-xs text-slate-500">Exposed credentials</div><div className="mt-1 text-2xl font-bold text-red-400">{leakCount}</div></div>
-        <div className="card p-4"><div className="text-xs text-slate-500">Mentions</div><div className="mt-1 text-2xl font-bold text-purple-400">{mentionCount}</div></div>
-        <div className="card p-4"><div className="text-xs text-slate-500">Resolved leaks</div><div className="mt-1 text-2xl font-bold text-green-400">{resolvedCount}</div></div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="card card-hover p-6 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-red-500/20 transition-all" />
+          <div className="text-sm font-bold text-slate-400 uppercase tracking-widest">Exposed Credentials</div>
+          <div className="mt-2 text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-red-400 to-rose-600">{leakCount}</div>
+        </div>
+        <div className="card card-hover p-6 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-purple-500/20 transition-all" />
+          <div className="text-sm font-bold text-slate-400 uppercase tracking-widest">Dark Web Mentions</div>
+          <div className="mt-2 text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-purple-400 to-fuchsia-600">{mentionCount}</div>
+        </div>
+        <div className="card card-hover p-6 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-green-500/20 transition-all" />
+          <div className="text-sm font-bold text-slate-400 uppercase tracking-widest">Resolved Leaks</div>
+          <div className="mt-2 text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-green-400 to-emerald-600">{resolvedCount}</div>
+        </div>
       </div>
 
       <div className="card p-5 space-y-4">
@@ -182,30 +186,35 @@ export default function DarkWebMonitor() {
       </div>
 
       {!results && !scanning && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-8">
           {[
             [Mail, 'Credential Dumps', 'Search for leaked employee emails and passwords in data breaches.'],
             [Database, 'Paste Monitoring', 'Scan public repositories and paste sites for internal secrets.'],
             [Eye, 'Forum Mentions', 'Detect discussions and listings targeting your organization.'],
-          ].map(([Icon, title, copy]) => (
-            <div key={title} className="card p-6 border-dashed border-dark-600 flex flex-col items-center text-center space-y-3">
-              <div className="w-12 h-12 bg-dark-700 rounded-full flex items-center justify-center"><Icon className="w-6 h-6 text-slate-500" /></div>
-              <h3 className="font-bold text-white">{title}</h3>
-              <p className="text-xs text-slate-500 leading-relaxed">{copy}</p>
+          ].map(([Icon, title, copy], idx) => (
+            <div key={title} className="group relative card p-8 border border-white/5 bg-gradient-to-b from-dark-800/40 to-transparent flex flex-col items-center text-center space-y-4 hover:border-purple-500/30 transition-all animate-fade-in-up" style={{ animationDelay: `${idx * 150}ms` }}>
+              <div className="absolute inset-0 bg-gradient-to-t from-purple-900/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl" />
+              <div className="w-16 h-16 bg-gradient-to-br from-dark-700 to-dark-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-neon-purple transition-all">
+                <Icon className="w-8 h-8 text-purple-400 group-hover:scale-110 transition-transform" />
+              </div>
+              <h3 className="font-extrabold text-white text-lg">{title}</h3>
+              <p className="text-sm text-slate-400 leading-relaxed max-w-[200px]">{copy}</p>
             </div>
           ))}
         </div>
       )}
 
       {scanning && (
-        <div className="py-20 flex flex-col items-center justify-center space-y-4">
+        <div className="py-32 flex flex-col items-center justify-center space-y-8 animate-in zoom-in duration-700">
           <div className="relative">
-            <div className="w-20 h-20 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
-            <Ghost className="absolute inset-0 m-auto w-8 h-8 text-purple-500 animate-pulse" />
+            <div className="absolute inset-0 bg-purple-500/20 blur-3xl rounded-full" />
+            <div className="w-32 h-32 border-[6px] border-dark-700 border-t-purple-500 rounded-full animate-spin shadow-neon-purple" />
+            <div className="absolute inset-0 m-auto w-24 h-24 border-[4px] border-dark-700 border-b-pink-500 rounded-full animate-radar-spin" style={{ animationDirection: 'reverse' }} />
+            <Ghost className="absolute inset-0 m-auto w-10 h-10 text-purple-400 animate-pulse" />
           </div>
-          <div className="text-center">
-            <h3 className="text-lg font-bold text-white tracking-widest uppercase">Deep Crawling...</h3>
-            <p className="text-sm text-slate-500">Querying exposure sources and local threat intelligence</p>
+          <div className="text-center space-y-2">
+            <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 tracking-[0.2em] uppercase animate-pulse">Deep Crawling Network...</h3>
+            <p className="text-sm text-slate-400 font-mono">Querying intelligence sources: HIBP, EmailRep, SecureDB</p>
           </div>
         </div>
       )}
@@ -226,30 +235,61 @@ export default function DarkWebMonitor() {
           <div className="flex border-b border-dark-600 gap-6 overflow-x-auto">
             <button onClick={() => setActiveTab('leaks')} className={clsx('pb-3 text-sm font-bold uppercase tracking-widest transition-all', activeTab === 'leaks' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-slate-500')}>Exposed Credentials ({leakCount})</button>
             <button onClick={() => setActiveTab('mentions')} className={clsx('pb-3 text-sm font-bold uppercase tracking-widest transition-all', activeTab === 'mentions' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-slate-500')}>Mentions ({mentionCount})</button>
+            <button onClick={() => setActiveTab('osint')} className={clsx('pb-3 text-sm font-bold uppercase tracking-widest transition-all', activeTab === 'osint' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-slate-500')}>OSINT Engines</button>
             <button onClick={() => setActiveTab('actions')} className={clsx('pb-3 text-sm font-bold uppercase tracking-widest transition-all', activeTab === 'actions' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-slate-500')}>Actions</button>
           </div>
 
           {activeTab === 'leaks' && (
-            <div className="grid grid-cols-1 gap-4">
-              {leakCount > 0 ? results.leaks.map((leak, i) => (
-                <div key={leak.id || i} className="card p-5 border-l-4 border-l-red-500 bg-red-500/5 flex items-center justify-between gap-4">
-                  <div className="flex min-w-0 items-center gap-4">
-                    <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center"><Lock className="w-5 h-5 text-red-500" /></div>
-                    <div className="min-w-0">
-                      <div className="text-white font-mono font-bold text-sm break-all">{leak.email}</div>
-                      <div className="text-[10px] text-slate-500 uppercase font-bold mt-1">Breach: {leak.source} | Date: {leak.date}</div>
-                    </div>
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {leakCount > 0 ? (
+                <>
+                  <div className="overflow-x-auto rounded-xl border border-dark-600 bg-dark-800/50 backdrop-blur-sm shadow-xl mt-2">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                      <thead className="bg-dark-700/80 text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-dark-600">
+                        <tr>
+                          <th className="p-4 w-8 text-center"></th>
+                          <th className="p-4">Source URL / Breach</th>
+                          <th className="p-4">Type</th>
+                          <th className="p-4">Email / Username</th>
+                          <th className="p-4">Details</th>
+                          <th className="p-4">Indexed At</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-dark-600/50">
+                        {results.leaks.map((leak, i) => {
+                          return (
+                            <tr key={leak.id || i} className="hover:bg-white/5 transition-colors group">
+                              <td className="p-4 align-middle">
+                                <div className="w-4 h-4 rounded border border-slate-600 group-hover:border-purple-500 transition-colors mx-auto flex items-center justify-center">
+                                  {resolvedLeaks.includes(leak.id || leak.email) && <CheckCircle2 className="w-3 h-3 text-green-400" />}
+                                </div>
+                              </td>
+                              <td className="p-4 font-mono text-slate-300">
+                                <span className="flex items-center gap-2 hover:text-blue-400 cursor-pointer transition-colors"><Globe className="w-3.5 h-3.5 text-slate-500 group-hover:text-blue-400" /> {leak.source || 'Dark Web Dump'}</span>
+                              </td>
+                              <td className="p-4">
+                                <span className="px-2.5 py-1 rounded-full border border-green-500/30 text-green-400 text-[10px] font-bold tracking-widest uppercase bg-green-500/10">Email</span>
+                              </td>
+                              <td className="p-4 font-mono text-white font-bold">
+                                {leak.email}
+                              </td>
+                              <td className="p-4 text-slate-300">
+                                <span className="flex items-center gap-2"><ShieldAlert className="w-3.5 h-3.5 text-red-400" /> {leak.hint || 'Exposed in data breach'}</span>
+                              </td>
+                              <td className="p-4">
+                                <div className="flex flex-col items-start">
+                                  <div className="flex items-center gap-1.5 text-slate-300 text-xs"><Database className="w-3.5 h-3.5 text-slate-500" /> {leak.date}</div>
+                                  <span className="text-[9px] font-bold text-orange-400 mt-1 uppercase bg-orange-500/10 px-1.5 py-0.5 rounded">Recent</span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter">{leak.severity || 'exposed'}</span>
-                    {resolvedLeaks.includes(leak.id || leak.email) ? (
-                      <CheckCircle2 className="w-5 h-5 text-green-400" />
-                    ) : (
-                      <button onClick={() => markResolved(leak)} className="text-slate-500 hover:text-green-400" title="Mark resolved"><CheckCircle2 className="w-5 h-5" /></button>
-                    )}
-                  </div>
-                </div>
-              )) : (
+                </>
+              ) : (
                 <div className="py-12 text-center card bg-green-500/5 border-green-500/20">
                   <ShieldCheck className="w-12 h-12 text-green-500 mx-auto mb-3" />
                   <h3 className="text-white font-bold">No Leaked Credentials</h3>
@@ -262,14 +302,21 @@ export default function DarkWebMonitor() {
           {activeTab === 'mentions' && (
             <div className="grid grid-cols-1 gap-4">
               {mentionCount > 0 ? results.mentions.map((mention, i) => (
-                <div key={mention.id || i} className="card p-5 border-l-4 border-l-purple-500 bg-purple-500/5">
+                <div key={mention.id || i} className="card p-5 border-l-4 border-l-purple-500 bg-purple-500/5 hover:bg-purple-500/10 transition-colors">
                   <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-2">
+                    <div className="space-y-2 flex-1">
                       <div className="flex items-center gap-2"><Ghost className="w-4 h-4 text-purple-400" /><span className="text-white font-bold text-sm tracking-tight">{mention.title}</span></div>
                       <p className="text-xs text-slate-400 leading-relaxed italic">"{mention.snippet}"</p>
                       <div className="text-[10px] text-slate-600 font-mono uppercase font-bold">{mention.onion_site}</div>
                     </div>
-                    <AlertTriangle className="w-5 h-5 text-purple-400 animate-pulse" />
+                    <div className="flex flex-col items-end gap-3">
+                      <AlertTriangle className="w-5 h-5 text-purple-400 animate-pulse" />
+                      {mention.url && (
+                        <a href={mention.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-[10px] font-bold text-purple-400 hover:text-white bg-purple-500/10 hover:bg-purple-500/30 px-3 py-1.5 rounded-lg border border-purple-500/20 transition-all uppercase tracking-widest">
+                          <ExternalLink className="w-3.5 h-3.5" /> View Source
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
               )) : (
@@ -277,6 +324,30 @@ export default function DarkWebMonitor() {
                   <Activity className="w-12 h-12 text-slate-700 mx-auto mb-3" />
                   <h3 className="text-white font-bold">No Active Mentions</h3>
                   <p className="text-sm text-slate-500">No organizational mentions found.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'osint' && (
+            <div className="space-y-4">
+              <div className="card p-5 bg-dark-800">
+                <h3 className="text-white font-bold mb-4 flex items-center gap-2"><Globe className="w-5 h-5 text-blue-400" /> Connected Open Sources</h3>
+                <div className="flex flex-wrap gap-2">
+                  {(results.sources_checked || []).map(src => (
+                    <span key={src} className="px-3 py-1 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-full text-xs font-bold">{src}</span>
+                  ))}
+                </div>
+              </div>
+              {(results.premium_sources_skipped || []).length > 0 && (
+                <div className="card p-5 bg-orange-500/5 border-orange-500/20">
+                  <h3 className="text-orange-400 font-bold mb-3 flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> Freemium Engines Skipped</h3>
+                  <p className="text-sm text-slate-400 mb-4">The following APIs were skipped. Register for a free account on their platform and add the API Key to <code className="text-orange-300">backend/.env</code> to activate them:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {results.premium_sources_skipped.map(src => (
+                      <span key={src} className="px-3 py-1 bg-orange-500/10 border border-orange-500/30 text-orange-400 rounded-full text-xs font-bold">{src}</span>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

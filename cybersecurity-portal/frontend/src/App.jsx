@@ -24,7 +24,6 @@ import AdvancedSecurityCenter from './pages/AdvancedSecurityCenter'
 import DeepScan from './pages/DeepScan'
 import DarkWebMonitor from './pages/DarkWebMonitor'
 import SecuritySettings from './pages/SecuritySettings'
-import MobileToolkit from './pages/MobileToolkit'
 import AdvancedOpsSuite from './pages/AdvancedOpsSuite'
 
 function PrivateRoute({ children, adminOnly, analystOnly }) {
@@ -65,7 +64,6 @@ function AppRoutes() {
         <Route path="/advanced-ops" element={<AdvancedOpsSuite />} />
         <Route path="/deepscan" element={<DeepScan />} />
         <Route path="/darkweb" element={<DarkWebMonitor />} />
-        <Route path="/mobile-toolkit" element={<MobileToolkit />} />
         <Route path="/security" element={<SecuritySettings />} />
       </Route>
 

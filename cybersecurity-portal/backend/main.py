@@ -21,8 +21,9 @@ from models import User, Sector, UserRole, Advisory, AdvisoryStatus, AdvisorySou
 from schemas import AdvisoryOut
 
 # Routes
-from routes import auth, advisories, dashboard, admin, collaboration, ai, reports, apt_router, war_room, sandbox, advanced, darkweb
+from routes import auth, advisories, dashboard, admin, collaboration, ai, reports, apt_router, war_room, sandbox, advanced, darkweb, cve_lookup
 from services import threat_feeds
+from services.auto_enricher import auto_enrich_priority_iocs
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,9 +42,12 @@ def seed_database():
         existing_admin = db.query(User).filter(User.username == "admin").first()
         
         if existing_admin:
-            # Overwrite password to ensure it matches the current hashing algorithm (PBKDF2)
-            existing_admin.hashed_password = hash_password("Admin@12345")
-            logger.info("Admin user password reset to 'Admin@12345' (PBKDF2)")
+            if settings.FORCE_ADMIN_RESET:
+                # Overwrite password to ensure it matches the current hashing algorithm (PBKDF2)
+                existing_admin.hashed_password = hash_password("Admin@12345")
+                logger.info("Admin user password reset to 'Admin@12345' (PBKDF2)")
+            else:
+                logger.info("Admin user already exists. Skipping password reset (FORCE_ADMIN_RESET is False).")
         else:
             admin_user = User(
                 email="admin@secure.local",
@@ -165,6 +169,16 @@ async def lifespan(app: FastAPI):
         id="feed_poll",
         replace_existing=True,
     )
+    
+    # Schedule 24h auto-enrichment of priority IOCs
+    scheduler.add_job(
+        auto_enrich_priority_iocs,
+        "interval",
+        hours=24,
+        id="auto_enrich_24h",
+        replace_existing=True,
+    )
+    
     scheduler.start()
     logger.info(f"Feed scheduler started — polling every {settings.FEED_POLL_INTERVAL_MINUTES} minutes")
 
@@ -206,6 +220,8 @@ allowed_origins = [
     "http://localhost:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
     "http://127.0.0.1:3000",
     "https://secure-portal.vercel.app",
 ]
@@ -238,6 +254,7 @@ app.include_router(war_room.router, prefix="/api")
 app.include_router(sandbox.router, prefix="/api")
 app.include_router(advanced.router, prefix="/api")
 app.include_router(darkweb.router, prefix="/api")
+app.include_router(cve_lookup.router, prefix="/api/cve")
 
 
 @app.get("/api/health")

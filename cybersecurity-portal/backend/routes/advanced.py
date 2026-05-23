@@ -2,10 +2,12 @@ import re
 import socket
 import ssl
 import io
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 from urllib.parse import urlparse
 
+import httpx
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, func, or_
@@ -13,7 +15,12 @@ from sqlalchemy.orm import Session
 
 from auth import get_current_active_user
 from database import get_db
-from models import Advisory, AdvisoryStatus, IOC, Sector, SeverityLevel
+from models import Advisory, AdvisoryStatus, IOC, Sector, SeverityLevel, FeedLog
+from services.ai_service import get_ai_summary, analyze_attack_surface
+from services.threat_feeds import fetch_misp_circl, fetch_alienvault_otx
+from config import settings
+
+logger = logging.getLogger("advanced")
 
 router = APIRouter(prefix="/advanced", tags=["Advanced Security"])
 
@@ -299,10 +306,7 @@ async def threat_analyst(
             "ips": ips,
             "urls": urls,
         },
-        "summary": (
-            f"{query} is rated {verdict} based on local SecureEye intelligence, "
-            f"known exploitation flags, CVSS, and recent advisory matches."
-        ),
+        "summary": await get_ai_summary(query),
         "recommended_actions": [
             "Check affected assets and exposure immediately.",
             "Search logs for related IOCs and authentication anomalies.",
@@ -332,7 +336,8 @@ async def attack_surface(
         "open_ports": [],
         "subdomains_checked": [],
         "risks": [],
-        "intel_source": "OSINT Aggregator"
+        "ai_summary": None,
+        "intel_source": "Shodan InternetDB & AlienVault OTX"
     }
 
     # 1. Resolve Primary IP
@@ -341,55 +346,56 @@ async def attack_surface(
     except OSError:
         result["risks"].append("Primary domain did not resolve")
 
-    # 2. Real-World Subdomain Discovery (crt.sh & HackerTarget)
-    discovered_hosts = set()
+    # 2. Production Integrations
     async with httpx.AsyncClient(timeout=15) as client:
-        # A. Check HackerTarget (Fast & Reliable)
-        try:
-            r = await client.get(f"https://api.hackertarget.com/hostsearch/?q={domain}")
-            if r.status_code == 200 and "error" not in r.text.lower():
-                for line in r.text.splitlines():
-                    if "," in line:
-                        host = line.split(",")[0]
-                        discovered_hosts.add(host)
-        except Exception as e:
-            logger.error(f"HackerTarget discovery failed: {e}")
-
-        # B. Check crt.sh if few hosts found (Deep Certificate Search)
-        if len(discovered_hosts) < 5:
+        # A. Shodan InternetDB (Free, No Auth)
+        if result["ip"]:
             try:
-                cr = await client.get(f"https://crt.sh/?q=%25.{domain}&output=json")
-                if cr.status_code == 200:
-                    for entry in cr.json():
-                        name = entry.get("name_value", "").lower()
-                        # Handle wildcard and multi-name certs
-                        for n in name.split('\n'):
-                            if n.endswith(domain) and "*" not in n:
-                                discovered_hosts.add(n)
+                shodan_r = await client.get(f"https://internetdb.shodan.io/{result['ip']}")
+                if shodan_r.status_code == 200:
+                    data = shodan_r.json()
+                    result["open_ports"] = data.get("ports", [])
+                    cves = data.get("vulns", [])
+                    if cves:
+                        result["risks"].append(f"Shodan detected {len(cves)} known vulnerabilities (CVEs) on this IP")
             except Exception as e:
-                logger.error(f"crt.sh discovery failed: {e}")
+                logger.error(f"Shodan InternetDB failed: {e}")
 
-    # 3. Verify and Resolve Discovered Subdomains (Limit to top 20 for performance)
-    for host in list(discovered_hosts)[:20]:
+        # B. AlienVault OTX (Threat Reputation)
+        if settings.ALIENVAULT_OTX_API_KEY:
+            try:
+                headers = {"X-OTX-API-KEY": settings.ALIENVAULT_OTX_API_KEY}
+                otx_r = await client.get(f"https://otx.alienvault.com/api/v1/indicators/domain/{domain}/general", headers=headers)
+                if otx_r.status_code == 200:
+                    otx_data = otx_r.json()
+                    pulse_count = otx_data.get("pulse_info", {}).get("count", 0)
+                    if pulse_count > 0:
+                        result["risks"].append(f"AlienVault OTX reports {pulse_count} threat intel pulses associated with this domain")
+            except Exception as e:
+                logger.error(f"AlienVault OTX failed: {e}")
+
+        # C. Subdomain Discovery (crt.sh fallback)
         try:
-            # We don't resolve every one synchronously to keep it fast, 
-            # but we'll flag interesting ones
-            result["subdomains_checked"].append({
-                "host": host,
-                "type": "production" if any(x in host for x in ["api", "portal", "www"]) else "discovered"
-            })
-            if any(x in host for x in ["dev", "staging", "test", "vpn", "admin", "internal"]):
-                result["risks"].append(f"Potentially sensitive endpoint discovered: {host}")
-        except:
-            continue
+            cr = await client.get(f"https://crt.sh/?q=%25.{domain}&output=json")
+            if cr.status_code == 200:
+                discovered_hosts = set()
+                for entry in cr.json():
+                    name = entry.get("name_value", "").lower()
+                    for n in name.split('\\n'):
+                        if n.endswith(domain) and "*" not in n:
+                            discovered_hosts.add(n)
+                
+                for host in list(discovered_hosts)[:15]:
+                    result["subdomains_checked"].append({
+                        "host": host,
+                        "type": "production" if any(x in host for x in ["api", "portal", "www"]) else "discovered"
+                    })
+                    if any(x in host for x in ["dev", "staging", "test", "vpn", "admin", "internal"]):
+                        result["risks"].append(f"Potentially sensitive endpoint discovered: {host}")
+        except Exception as e:
+            logger.error(f"crt.sh discovery failed: {e}")
 
-    # 4. Port & SSL Check on Primary
-    for port in [80, 443, 8080, 8443]:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(1.5)
-            if sock.connect_ex((domain, port)) == 0:
-                result["open_ports"].append(port)
-
+    # 3. SSL Check
     if 443 in result["open_ports"]:
         try:
             context = ssl.create_default_context()
@@ -407,6 +413,13 @@ async def attack_surface(
     
     if 80 in result["open_ports"] and 443 not in result["open_ports"]:
         result["risks"].append("HTTP is exposed without secure HTTPS alternative")
+
+    # 4. Neural Analysis Engine Integration
+    try:
+        result["ai_summary"] = await analyze_attack_surface(domain, result)
+    except Exception as e:
+        logger.error(f"AI analysis failed for attack surface: {e}")
+        result["ai_summary"] = None
 
     return result
 
@@ -697,3 +710,45 @@ async def executive_report(
         media_type="application/pdf",
         headers={"Content-Disposition": 'attachment; filename="SecureEye_Executive_Report.pdf"'},
     )
+
+@router.get("/misp/status")
+def get_misp_status(db: Session = Depends(get_db)):
+    # Get latest 10 MISP logs overall
+    misp_logs = db.query(FeedLog).filter(
+        FeedLog.feed_source.in_(["MISP_CIRCL", "ALIENVAULT_OTX"])
+    ).order_by(desc(FeedLog.run_at)).limit(10).all()
+
+    # Get overall counts
+    circl_iocs = db.query(func.count(IOC.id)).filter(IOC.source.ilike("%CIRCL%")).scalar()
+    otx_iocs = db.query(func.count(IOC.id)).filter(IOC.source.ilike("%OTX%")).scalar()
+
+    return {
+        "logs": [
+            {
+                "id": log.id,
+                "source": log.feed_source,
+                "status": log.status,
+                "items_new": log.items_new,
+                "items_duplicate": log.items_duplicate,
+                "error_msg": log.error_msg,
+                "timestamp": log.run_at.isoformat() if log.run_at else None
+            } for log in misp_logs
+        ],
+        "stats": {
+            "CIRCL": circl_iocs or 0,
+            "OTX": otx_iocs or 0
+        }
+    }
+
+@router.post("/misp/sync")
+async def sync_misp(db: Session = Depends(get_db)):
+    try:
+        circl_res = await fetch_misp_circl(db)
+        otx_res = await fetch_alienvault_otx(db)
+        return {
+            "status": "success",
+            "results": [circl_res, otx_res]
+        }
+    except Exception as e:
+        logger.error(f"MISP sync error: {e}")
+        return {"status": "error", "message": str(e)}

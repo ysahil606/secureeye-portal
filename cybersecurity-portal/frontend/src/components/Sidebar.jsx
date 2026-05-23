@@ -17,11 +17,10 @@ const navItems = [
   { to: '/iocs',        icon: Network,          label: 'IOC Management',  roles: ['admin','analyst','viewer'] },
   { to: '/deepscan',    icon: Cpu,              label: 'DeepScan Lab',    roles: ['admin','analyst','viewer'] },
   { to: '/darkweb',     icon: Ghost,            label: 'Dark Web Monitor',roles: ['admin','analyst','viewer'] },
-  { to: '/mobile-toolkit', icon: LifeBuoy,       label: 'Mobile Toolkit',  roles: ['admin','analyst','viewer'] },
-  { to: '/security',    icon: Shield,           label: 'Security Settings',roles: ['admin','analyst','viewer'] },
+
   { to: '/advanced',    icon: Sparkles,         label: 'Advanced Center', roles: ['admin','analyst','viewer'] },
-  { to: '/advanced-ops', icon: BrainCircuit,     label: 'Advanced Ops',    roles: ['admin','analyst','viewer'] },
-  { to: '/alerts',      icon: Bell,             label: 'Alert Logs',      roles: ['admin','analyst'] },
+
+
   { separator: true },
   { to: '/admin/users', icon: Users,            label: 'User Management', roles: ['admin'] },
   { to: '/admin/sectors',icon: Layers,          label: 'Manage Sectors',  roles: ['admin'] },
@@ -54,13 +53,45 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen = false, o
           <NavLink key={item.to} to={item.to}
             onClick={onMobileClose}
             className={({ isActive }) => clsx(
-              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all group',
+              'relative flex items-center gap-4 px-4 py-3 rounded-2xl text-[13px] transition-all duration-500 group overflow-hidden',
               isActive
-                ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30'
-                : 'text-slate-400 hover:text-white hover:bg-dark-700'
+                ? 'bg-dark-900/60 text-white border border-cyan-500/30 shadow-[0_0_20px_rgba(6,182,212,0.15)]'
+                : 'text-slate-400 hover:text-white border border-transparent hover:border-white/5'
             )}>
-            <item.icon className="w-4 h-4 flex-shrink-0" />
-            {!collapsed && <span className="truncate">{item.label}</span>}
+            {({ isActive }) => (
+              <>
+                {/* Active Indicator & Hover Backgrounds */}
+                <div className={clsx(
+                  "absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-blue-500/5 transition-opacity duration-500",
+                  isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                )} />
+                <div className={clsx(
+                  "absolute left-0 top-0 bottom-0 w-1 rounded-r-full transition-all duration-500 ease-out",
+                  isActive ? "bg-cyan-400 shadow-[0_0_15px_rgba(34,211,238,1)]" : "bg-transparent group-hover:bg-cyan-500/50"
+                )} />
+                
+                {/* Icon Container */}
+                <div className={clsx(
+                  "relative flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-500",
+                  isActive ? "bg-cyan-500/20 shadow-[inset_0_0_10px_rgba(34,211,238,0.3)]" : "bg-dark-800/50 group-hover:bg-dark-700/50 group-hover:scale-110 group-hover:shadow-[0_0_15px_rgba(255,255,255,0.05)]"
+                )}>
+                  <item.icon className={clsx(
+                    "w-4 h-4 flex-shrink-0 transition-all duration-500", 
+                    isActive ? "text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" : "text-slate-500 group-hover:text-cyan-300"
+                  )} />
+                </div>
+                
+                {/* Label */}
+                {!collapsed && (
+                  <span className={clsx(
+                    "font-bold truncate tracking-wide transition-all duration-500 relative z-10",
+                    isActive ? "text-transparent bg-clip-text bg-gradient-to-r from-white to-cyan-100 drop-shadow-sm" : "group-hover:translate-x-1"
+                  )}>
+                    {item.label}
+                  </span>
+                )}
+              </>
+            )}
           </NavLink>
         )
       })}
@@ -69,14 +100,14 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen = false, o
 
   const renderSidebarContent = (isMobile = false) => (
     <>
-      <div className="flex items-center gap-3 px-4 py-4 border-b border-dark-600 min-h-[60px]">
-        <div className="w-8 h-8 bg-blue-600/20 border border-blue-500/40 rounded-lg flex items-center justify-center flex-shrink-0">
-          <Shield className="w-4 h-4 text-blue-400" />
+      <div className="flex items-center gap-3 px-4 py-5 border-b border-white/5 min-h-[70px]">
+        <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-purple-500/20">
+          <Shield className="w-5 h-5 text-white" />
         </div>
         {!collapsed && (
           <div className="overflow-hidden">
-            <div className="font-bold text-white text-sm leading-tight">Secure</div>
-            <div className="text-xs text-slate-500">Advisory Portal</div>
+            <div className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 text-base leading-tight tracking-wide">SECURE_EYE</div>
+            <div className="text-[10px] text-slate-500 uppercase tracking-widest">Advisory Portal</div>
           </div>
         )}
         {!isMobile && (
@@ -127,14 +158,14 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen = false, o
   return (
     <>
       <aside className={clsx(
-        'hidden lg:fixed lg:left-0 lg:top-0 lg:z-30 lg:flex lg:h-screen lg:flex-col lg:border-r lg:border-dark-600 lg:bg-dark-800 lg:transition-all lg:duration-300',
-        collapsed ? 'lg:w-16' : 'lg:w-60'
+        'hidden lg:fixed lg:left-0 lg:top-0 lg:z-30 lg:flex lg:h-screen lg:flex-col lg:border-r lg:border-white/5 lg:bg-dark-900/40 lg:backdrop-blur-xl lg:transition-all lg:duration-300 shadow-2xl',
+        collapsed ? 'lg:w-20' : 'lg:w-64'
       )}>
         {renderSidebarContent()}
       </aside>
 
       {mobileOpen && (
-        <aside className="fixed left-0 top-0 z-50 flex h-screen w-72 max-w-[85vw] flex-col border-r border-dark-600 bg-dark-800">
+        <aside className="fixed left-0 top-0 z-50 flex h-screen w-72 max-w-[85vw] flex-col border-r border-white/5 bg-dark-900/80 backdrop-blur-xl shadow-2xl">
           {renderSidebarContent(true)}
         </aside>
       )}

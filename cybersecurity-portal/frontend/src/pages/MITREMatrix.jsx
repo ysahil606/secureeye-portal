@@ -26,9 +26,9 @@ export default function MITREMatrix() {
 
   const getIntensity = (techId) => {
     const count = stats[techId] || 0
-    if (count === 0) return 'bg-dark-800 text-slate-600 border-dark-700'
-    if (count < 35)  return 'bg-blue-600/40 text-blue-100 border-blue-500/50'
-    return 'bg-red-600/40 text-white border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+    if (count === 0) return 'bg-dark-800 text-slate-600 border-dark-700 hover:border-dark-500 hover:bg-dark-700/50'
+    if (count < 35)  return 'bg-blue-600/40 text-blue-100 border-blue-500/50 shadow-[inset_0_0_10px_rgba(59,130,246,0.1)] hover:bg-blue-600/60 hover:shadow-[0_0_15px_rgba(59,130,246,0.4)] hover:border-blue-400'
+    return 'bg-red-600/40 text-white border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2),inset_0_0_15px_rgba(239,68,68,0.2)] hover:bg-red-600/60 hover:shadow-[0_0_25px_rgba(239,68,68,0.5)] hover:border-red-400'
   }
 
   if (loading) return (
@@ -44,7 +44,6 @@ export default function MITREMatrix() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-white uppercase tracking-tight">MITRE ATT&CK Matrix Heatmap</h2>
-          <p className="text-xs text-slate-500 mt-1">Real-time technique coverage based on active advisories</p>
         </div>
         <div className="flex gap-4 text-[9px] font-bold uppercase tracking-widest">
             <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-sm bg-dark-800 border border-dark-600"/> Inactive</div>
@@ -60,19 +59,26 @@ export default function MITREMatrix() {
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {TACTICS.map(tactic => (
-          <div key={tactic.id} className="space-y-2">
+        {TACTICS.map((tactic, tIdx) => (
+          <div key={tactic.id} className="space-y-2 animate-in fade-in slide-in-from-top-4 duration-700 fill-mode-both" style={{ animationDelay: `${tIdx * 150}ms` }}>
             <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-dark-600 pb-1.5 mb-2">
                 {tactic.name}
             </div>
             <div className="space-y-2">
-              {tactic.techniques.map(tech => (
+              {tactic.techniques.map((tech, i) => (
                 <button key={tech} 
                   onClick={() => navigate(`/advisories?mitre_ttp=${tech}`)}
-                  className={`w-full text-left p-2 rounded border text-[10px] font-mono flex flex-col transition-all hover:scale-[1.02] active:scale-[0.98] ${getIntensity(tech)}`}
+                  className={`w-full text-left p-2 rounded border text-[10px] font-mono flex flex-col transition-all duration-300 hover:scale-[1.05] hover:z-10 animate-in fade-in zoom-in-50 fill-mode-both relative overflow-hidden group ${getIntensity(tech)}`}
+                  style={{ animationDelay: `${(tIdx * 150) + (i * 100) + 300}ms` }}
                   title={`${stats[tech] || 0} occurrences`}>
-                  <span className="font-bold">{tech}</span>
-                  {stats[tech] > 0 && <span className="mt-1 opacity-70">{stats[tech]} hits</span>}
+                  
+                  {/* Subtle sweep animation on hover for high intensity */}
+                  {(stats[tech] || 0) >= 35 && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] skew-x-12" />
+                  )}
+
+                  <span className="font-bold relative z-10">{tech}</span>
+                  {(stats[tech] || 0) > 0 && <span className="mt-1 opacity-70 relative z-10">{stats[tech]} hits</span>}
                 </button>
               ))}
             </div>

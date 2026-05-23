@@ -423,8 +423,11 @@ You have vast general knowledge about all cybersecurity topics, threat actors, m
 If the user asks about recent platform data, here is the latest context from the local database:
 {db_context}
 
-Provide highly detailed, structured, and comprehensive summaries similar to ChatGPT.
-Use rich Markdown formatting extensively: headers (##, ###), bullet points, bold text, and tables if applicable. Break down topics into 'Overview', 'Impact', 'Mitigation', etc.
+FORMATTING RULES:
+1. Always use rich Markdown formatting (bullet points, bold text, tables, headers).
+2. IF the user is asking about a specific cyber threat, malware, or vulnerability (CVE), provide a structured breakdown with headers like '## Overview', '## Impact', and '## Mitigation'.
+3. IF the user asks about a general topic, a definition, or something unrelated to a specific threat, DO NOT force those sections. Just answer naturally and contextually like ChatGPT would.
+4. If you don't know the answer, just say you don't know. Do not hallucinate scenarios.
 """
     
     # We will build a unified prompt since _smart_ai_call only takes a single prompt string,

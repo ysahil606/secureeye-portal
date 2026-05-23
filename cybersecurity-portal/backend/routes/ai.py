@@ -87,6 +87,24 @@ class AIChatRequest(BaseModel):
 
 import re
 import httpx
+from bs4 import BeautifulSoup
+import asyncio
+
+async def _duckduckgo_search(query: str) -> str:
+    """Live Web Browsing Engine using DuckDuckGo HTML"""
+    try:
+        async with httpx.AsyncClient(timeout=6) as client:
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+            r = await client.get(f"https://html.duckduckgo.com/html/?q={query} cybersecurity", headers=headers)
+            if r.status_code == 200:
+                soup = BeautifulSoup(r.text, 'html.parser')
+                results = soup.find_all('a', class_='result__snippet')
+                if results:
+                    snippets = [res.text.strip() for res in results[:3]]
+                    return "\\n".join([f"- {s}" for s in snippets])
+    except Exception as e:
+        logger.error(f"Web search failed: {e}")
+    return ""
 
 @router.post("/chat")
 async def chat_endpoint(
@@ -118,6 +136,12 @@ async def chat_endpoint(
                     logger.warning(f"Rate limited by Shodan for {cve_id}")
         except Exception as e:
             logger.error(f"Failed to fetch live CVE data for {cve_id}: {e}")
+
+    # LIVE WEB SEARCH CAPABILITY
+    if len(req.message) > 5:
+        search_results = await _duckduckgo_search(req.message)
+        if search_results:
+            context += f"\\n--- LIVE INTERNET SEARCH RESULTS FOR USER QUERY ---\\n{search_results}\\n"
 
     response = await ai_service.chat_with_assistant(req.message, req.history, context)
     return {"reply": response}

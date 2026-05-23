@@ -91,19 +91,62 @@ from bs4 import BeautifulSoup
 import asyncio
 
 async def _duckduckgo_search(query: str) -> str:
-    """Live Web Browsing Engine using DuckDuckGo HTML"""
+    """Live Web Browsing Engine - Multi-strategy DuckDuckGo scraper"""
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
+    # Strategy 1: DuckDuckGo Lite (more bot-friendly, no JS required)
     try:
-        async with httpx.AsyncClient(timeout=6) as client:
-            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-            r = await client.get(f"https://html.duckduckgo.com/html/?q={query} cybersecurity", headers=headers)
-            if r.status_code == 200:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+            encoded_query = query.replace(" ", "+")
+            r = await client.post(
+                "https://lite.duckduckgo.com/lite/",
+                data={"q": f"{query} cybersecurity", "kl": "us-en"},
+                headers=headers
+            )
+            if r.status_code in (200, 202):
                 soup = BeautifulSoup(r.text, 'html.parser')
-                results = soup.find_all('a', class_='result__snippet')
-                if results:
-                    snippets = [res.text.strip() for res in results[:3]]
-                    return "\\n".join([f"- {s}" for s in snippets])
+                # DDG Lite uses table rows with class 'result-link' and 'result-snippet'
+                snippets = []
+                for td in soup.find_all('td', class_='result-snippet'):
+                    text = td.get_text(strip=True)
+                    if text and len(text) > 30:
+                        snippets.append(text)
+                    if len(snippets) >= 3:
+                        break
+                if snippets:
+                    logger.info(f"Web search found {len(snippets)} results via DDG Lite")
+                    return "\n".join([f"- {s}" for s in snippets])
     except Exception as e:
-        logger.error(f"Web search failed: {e}")
+        logger.warning(f"DDG Lite search failed: {e}")
+
+    # Strategy 2: DuckDuckGo HTML fallback (accept any 2xx)
+    try:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+            r = await client.get(
+                f"https://html.duckduckgo.com/html/?q={query}+cybersecurity+threat",
+                headers=headers
+            )
+            if r.status_code < 300:
+                soup = BeautifulSoup(r.text, 'html.parser')
+                snippets = []
+                for sel in ['result__snippet', 'result-snippet', 'result__a']:
+                    elements = soup.find_all(class_=sel)
+                    for el in elements[:3]:
+                        text = el.get_text(strip=True)
+                        if text and len(text) > 30:
+                            snippets.append(text)
+                    if snippets:
+                        break
+                if snippets:
+                    logger.info(f"Web search found {len(snippets)} results via DDG HTML")
+                    return "\n".join([f"- {s}" for s in snippets])
+    except Exception as e:
+        logger.warning(f"DDG HTML search failed: {e}")
+
+    logger.warning(f"All web search strategies failed for: {query}")
     return ""
 
 @router.post("/chat")

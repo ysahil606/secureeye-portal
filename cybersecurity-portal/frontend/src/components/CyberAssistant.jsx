@@ -164,15 +164,33 @@ export default function CyberAssistant() {
                   {msg.role === 'user' ? <User className="w-4 h-4 text-blue-400" /> : <Bot className="w-4 h-4 text-purple-400" />}
                 </div>
                 <div className={clsx(
-                  "max-w-[85%] rounded-2xl px-5 py-4 text-sm whitespace-pre-wrap leading-relaxed shadow-lg overflow-x-auto",
-                  msg.role === 'user' 
-                    ? "bg-gradient-to-br from-blue-900/40 to-blue-950/40 border border-blue-500/20 text-blue-50 rounded-tr-none font-mono" 
-                    : "bg-gradient-to-br from-purple-900/20 to-[#030a16] border border-purple-500/20 text-purple-50/90 rounded-tl-none font-sans"
+                  "max-w-[88%] rounded-2xl px-4 py-3 text-[13px] leading-[1.7] shadow-lg overflow-x-auto",
+                  msg.role === 'user'
+                    ? "bg-gradient-to-br from-blue-900/40 to-blue-950/40 border border-blue-500/20 text-blue-50 rounded-tr-none font-sans"
+                    : "bg-gradient-to-br from-[#0d0a1f] to-[#030a16] border border-purple-500/20 text-gray-200 rounded-tl-none font-sans"
                 )}>
                   {msg.role === 'assistant' ? (
-                    <ReactMarkdown 
+                    <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
-                      className="space-y-4 [&>h1]:text-xl [&>h1]:font-bold [&>h1]:text-purple-300 [&>h2]:text-lg [&>h2]:font-bold [&>h2]:text-purple-300 [&>h3]:text-base [&>h3]:font-bold [&>h3]:text-purple-300 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:pl-5 [&>ol]:space-y-1 [&>p]:leading-relaxed [&>p]:text-gray-300 [&_strong]:text-white [&_a]:text-cyan-400 [&_a]:underline [&_table]:w-full [&_th]:border [&_th]:border-purple-500/30 [&_th]:p-2 [&_th]:bg-purple-900/30 [&_td]:border [&_td]:border-purple-500/20 [&_td]:p-2 [&_code]:bg-[#00050b] [&_code]:text-emerald-400 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-md [&_code]:font-mono [&_code]:text-xs [&_pre]:bg-[#00050b] [&_pre]:p-4 [&_pre]:rounded-xl [&_pre]:overflow-x-auto [&_pre_code]:bg-transparent [&_pre_code]:text-sm [&_pre_code]:text-blue-300 [&>blockquote]:border-l-4 [&>blockquote]:border-purple-500/50 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:text-gray-400"
+                      components={{
+                        h1: ({node, ...props}) => <h1 style={{fontSize:'1.2em', fontWeight:700, color:'#c4b5fd', marginBottom:'0.5em', marginTop:'0.75em', borderBottom:'1px solid rgba(139,92,246,0.2)', paddingBottom:'0.3em'}} {...props} />,
+                        h2: ({node, ...props}) => <h2 style={{fontSize:'1.05em', fontWeight:700, color:'#a78bfa', marginBottom:'0.4em', marginTop:'0.75em'}} {...props} />,
+                        h3: ({node, ...props}) => <h3 style={{fontSize:'0.95em', fontWeight:600, color:'#8b5cf6', marginBottom:'0.3em', marginTop:'0.5em'}} {...props} />,
+                        p: ({node, ...props}) => <p style={{marginBottom:'0.6em', color:'#d1d5db', lineHeight:'1.7'}} {...props} />,
+                        ul: ({node, ...props}) => <ul style={{paddingLeft:'1.2em', marginBottom:'0.5em', listStyleType:'disc'}} {...props} />,
+                        ol: ({node, ...props}) => <ol style={{paddingLeft:'1.2em', marginBottom:'0.5em', listStyleType:'decimal'}} {...props} />,
+                        li: ({node, ...props}) => <li style={{marginBottom:'0.2em', color:'#d1d5db'}} {...props} />,
+                        strong: ({node, ...props}) => <strong style={{color:'#ffffff', fontWeight:600}} {...props} />,
+                        code: ({node, inline, ...props}) => inline
+                          ? <code style={{background:'#00050b', color:'#34d399', padding:'0.1em 0.4em', borderRadius:'4px', fontFamily:'monospace', fontSize:'0.85em'}} {...props} />
+                          : <code style={{display:'block', background:'#00050b', color:'#93c5fd', padding:'1em', borderRadius:'8px', fontSize:'0.8em', overflowX:'auto', fontFamily:'monospace', marginBottom:'0.5em'}} {...props} />,
+                        pre: ({node, ...props}) => <pre style={{background:'transparent', margin:0, padding:0}} {...props} />,
+                        table: ({node, ...props}) => <table style={{width:'100%', borderCollapse:'collapse', marginBottom:'0.5em', fontSize:'0.85em'}} {...props} />,
+                        th: ({node, ...props}) => <th style={{border:'1px solid rgba(139,92,246,0.3)', padding:'0.4em 0.6em', background:'rgba(88,28,135,0.3)', color:'#e9d5ff', textAlign:'left'}} {...props} />,
+                        td: ({node, ...props}) => <td style={{border:'1px solid rgba(139,92,246,0.15)', padding:'0.4em 0.6em', color:'#d1d5db'}} {...props} />,
+                        blockquote: ({node, ...props}) => <blockquote style={{borderLeft:'3px solid rgba(139,92,246,0.5)', paddingLeft:'0.8em', color:'#9ca3af', fontStyle:'italic', margin:'0.5em 0'}} {...props} />,
+                        a: ({node, ...props}) => <a style={{color:'#22d3ee', textDecoration:'underline'}} {...props} />,
+                      }}
                     >
                       {msg.content}
                     </ReactMarkdown>

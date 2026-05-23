@@ -90,64 +90,51 @@ import httpx
 from bs4 import BeautifulSoup
 import asyncio
 
-async def _duckduckgo_search(query: str) -> str:
-    """Live Web Browsing Engine - Multi-strategy DuckDuckGo scraper"""
-    headers = {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    }
-    # Strategy 1: DuckDuckGo Lite (more bot-friendly, no JS required)
+async def _wikipedia_search(query: str) -> str:
+    """Live Web Knowledge Engine — Wikipedia Search API (100% free, no API key)"""
+    headers = {"User-Agent": "SecureEye/1.0 (cybersecurity-portal; contact@secureeye.app)"}
+    snippets = []
     try:
         async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
-            encoded_query = query.replace(" ", "+")
-            r = await client.post(
-                "https://lite.duckduckgo.com/lite/",
-                data={"q": f"{query} cybersecurity", "kl": "us-en"},
-                headers=headers
-            )
-            if r.status_code in (200, 202):
-                soup = BeautifulSoup(r.text, 'html.parser')
-                # DDG Lite uses table rows with class 'result-link' and 'result-snippet'
-                snippets = []
-                for td in soup.find_all('td', class_='result-snippet'):
-                    text = td.get_text(strip=True)
-                    if text and len(text) > 30:
-                        snippets.append(text)
-                    if len(snippets) >= 3:
-                        break
-                if snippets:
-                    logger.info(f"Web search found {len(snippets)} results via DDG Lite")
-                    return "\n".join([f"- {s}" for s in snippets])
-    except Exception as e:
-        logger.warning(f"DDG Lite search failed: {e}")
+            # Step 1: Search for the best matching Wikipedia articles
+            search_url = "https://en.wikipedia.org/w/api.php"
+            params = {
+                "action": "query",
+                "list": "search",
+                "srsearch": f"{query} cybersecurity hacker threat",
+                "format": "json",
+                "srlimit": 2,
+            }
+            r = await client.get(search_url, params=params, headers=headers)
+            if r.status_code == 200:
+                results = r.json().get("query", {}).get("search", [])
+                for res in results:
+                    title = res.get("title", "")
+                    snippet = res.get("snippet", "").replace('<span class="searchmatch">', "").replace("</span>", "")
+                    if snippet:
+                        snippets.append(f"**{title}**: {snippet}")
 
-    # Strategy 2: DuckDuckGo HTML fallback (accept any 2xx)
-    try:
-        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
-            r = await client.get(
-                f"https://html.duckduckgo.com/html/?q={query}+cybersecurity+threat",
-                headers=headers
-            )
-            if r.status_code < 300:
-                soup = BeautifulSoup(r.text, 'html.parser')
-                snippets = []
-                for sel in ['result__snippet', 'result-snippet', 'result__a']:
-                    elements = soup.find_all(class_=sel)
-                    for el in elements[:3]:
-                        text = el.get_text(strip=True)
-                        if text and len(text) > 30:
-                            snippets.append(text)
-                    if snippets:
-                        break
-                if snippets:
-                    logger.info(f"Web search found {len(snippets)} results via DDG HTML")
-                    return "\n".join([f"- {s}" for s in snippets])
-    except Exception as e:
-        logger.warning(f"DDG HTML search failed: {e}")
+                # Step 2: Fetch intro of the top result
+                if results:
+                    top_title = results[0].get("title", "")
+                    intro_r = await client.get(
+                        f"https://en.wikipedia.org/api/rest_v1/page/summary/{top_title.replace(' ', '_')}",
+                        headers=headers
+                    )
+                    if intro_r.status_code == 200:
+                        intro_data = intro_r.json()
+                        extract = intro_data.get("extract", "")
+                        if extract and len(extract) > 50:
+                            snippets.insert(0, f"**Wikipedia Summary ({top_title})**: {extract[:600]}")
 
-    logger.warning(f"All web search strategies failed for: {query}")
+    except Exception as e:
+        logger.warning(f"Wikipedia search failed: {e}")
+
+    if snippets:
+        logger.info(f"Wikipedia search found {len(snippets)} results for: {query}")
+        return "\n".join(snippets)
     return ""
+
 
 @router.post("/chat")
 async def chat_endpoint(
@@ -180,11 +167,11 @@ async def chat_endpoint(
         except Exception as e:
             logger.error(f"Failed to fetch live CVE data for {cve_id}: {e}")
 
-    # LIVE WEB SEARCH CAPABILITY
+    # LIVE WIKIPEDIA KNOWLEDGE SEARCH
     if len(req.message) > 5:
-        search_results = await _duckduckgo_search(req.message)
+        search_results = await _wikipedia_search(req.message)
         if search_results:
-            context += f"\\n--- LIVE INTERNET SEARCH RESULTS FOR USER QUERY ---\\n{search_results}\\n"
+            context += f"\\n--- LIVE WIKIPEDIA KNOWLEDGE ---\\n{search_results}\\n"
 
     response = await ai_service.chat_with_assistant(req.message, req.history, context)
     return {"reply": response}

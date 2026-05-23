@@ -95,7 +95,7 @@ async def chat_endpoint(
     recent_advisories = db.query(Advisory).order_by(Advisory.published_at.desc()).limit(5).all()
     context = ""
     for a in recent_advisories:
-        context += f"Title: {a.title} | Severity: {a.severity} | CVE: {a.cve_id}\\n"
+        context += f"Title: {a.title} | Severity: {a.severity} | CVE: {a.cve_ids}\\n"
 
     response = await ai_service.chat_with_assistant(req.message, req.history, context)
     return {"reply": response}

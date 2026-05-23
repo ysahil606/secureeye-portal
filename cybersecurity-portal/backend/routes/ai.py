@@ -85,6 +85,9 @@ class AIChatRequest(BaseModel):
     message: str
     history: list = []
 
+import re
+import httpx
+
 @router.post("/chat")
 async def chat_endpoint(
     req: AIChatRequest,
@@ -93,9 +96,25 @@ async def chat_endpoint(
 ):
     # Fetch 5 most recent advisories to give the bot context
     recent_advisories = db.query(Advisory).order_by(Advisory.published_at.desc()).limit(5).all()
-    context = ""
+    context = "--- LOCAL DATABASE CONTEXT ---\\n"
     for a in recent_advisories:
         context += f"Title: {a.title} | Severity: {a.severity} | CVE: {a.cve_ids}\\n"
+
+    # Dynamic CVE Lookup
+    cve_match = re.search(r"(CVE-\d{4}-\d{4,7})", req.message, re.IGNORECASE)
+    if cve_match:
+        cve_id = cve_match.group(1).upper()
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                r = await client.get(f"https://cve.circl.lu/api/cve/{cve_id}")
+                if r.status_code == 200:
+                    data = r.json()
+                    if data:
+                        context += f"\\n--- LIVE OSINT DATA FOR {cve_id} ---\\n"
+                        context += f"Summary: {data.get('summary', 'N/A')}\\n"
+                        context += f"CVSS: {data.get('cvss', 'N/A')}\\n"
+        except Exception as e:
+            logger.error(f"Failed to fetch live CVE data for {cve_id}: {e}")
 
     response = await ai_service.chat_with_assistant(req.message, req.history, context)
     return {"reply": response}

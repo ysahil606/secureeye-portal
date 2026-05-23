@@ -29,7 +29,7 @@ SYS_PROMPT = (
     "(6) Be authoritative, precise, terse, and technically accurate."
 )
 
-async def _try_gemini(prompt: str, api_key: str, model: str = "gemini-2.0-flash", max_tokens: int = 3000) -> str | None:
+async def _try_gemini(prompt: str, api_key: str, model: str = "gemini-2.0-flash", max_tokens: int = 3000, sys_prompt: str = SYS_PROMPT) -> str | None:
     """Google Gemini — Free 1,500 req/day per key. Each model has its own quota."""
     if not api_key:
         return None
@@ -37,7 +37,7 @@ async def _try_gemini(prompt: str, api_key: str, model: str = "gemini-2.0-flash"
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "systemInstruction": {"parts": [{"text": SYS_PROMPT}]},
+            "systemInstruction": {"parts": [{"text": sys_prompt}]},
             "generationConfig": {"temperature": 0.2, "maxOutputTokens": max_tokens}
         }
         async with httpx.AsyncClient(timeout=45) as client:
@@ -54,14 +54,14 @@ async def _try_gemini(prompt: str, api_key: str, model: str = "gemini-2.0-flash"
         logger.warning(f"Gemini [{model}] failed: {e}")
     return None
 
-async def _try_groq(prompt: str, api_key: str, model: str = "llama-3.3-70b-versatile", max_tokens: int = 3000) -> str | None:
+async def _try_groq(prompt: str, api_key: str, model: str = "llama-3.3-70b-versatile", max_tokens: int = 3000, sys_prompt: str = SYS_PROMPT) -> str | None:
     """Groq — Free per key per model. Each model has its OWN separate rate limit bucket."""
     if not api_key:
         return None
     try:
         client = Groq(api_key=api_key)
         resp = client.chat.completions.create(
-            messages=[{"role": "system", "content": SYS_PROMPT}, {"role": "user", "content": prompt}],
+            messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": prompt}],
             model=model,
             temperature=0.2,
             max_tokens=max_tokens,
@@ -78,7 +78,7 @@ async def _try_groq(prompt: str, api_key: str, model: str = "llama-3.3-70b-versa
             logger.warning(f"Groq [{model}] failed: {e}")
     return None
 
-async def _try_cerebras(prompt: str, max_tokens: int = 3000) -> str | None:
+async def _try_cerebras(prompt: str, max_tokens: int = 3000, sys_prompt: str = SYS_PROMPT) -> str | None:
     """Cerebras Llama-3.3-70B — Free 1,000 req/day. Very fast."""
     if not settings.CEREBRAS_API_KEY:
         return None
@@ -86,7 +86,7 @@ async def _try_cerebras(prompt: str, max_tokens: int = 3000) -> str | None:
         url = "https://api.cerebras.ai/v1/chat/completions"
         payload = {
             "model": "llama-3.3-70b",
-            "messages": [{"role": "system", "content": SYS_PROMPT}, {"role": "user", "content": prompt}],
+            "messages": [{"role": "system", "content": sys_prompt}, {"role": "user", "content": prompt}],
             "max_tokens": max_tokens,
             "temperature": 0.2,
         }
@@ -104,7 +104,7 @@ async def _try_cerebras(prompt: str, max_tokens: int = 3000) -> str | None:
         logger.warning(f"Cerebras failed: {e}")
     return None
 
-async def _try_openrouter(prompt: str, max_tokens: int = 3000) -> str | None:
+async def _try_openrouter(prompt: str, max_tokens: int = 3000, sys_prompt: str = SYS_PROMPT) -> str | None:
     """OpenRouter free models — No cost, just needs a free account key."""
     if not settings.OPENROUTER_API_KEY:
         return None
@@ -112,7 +112,7 @@ async def _try_openrouter(prompt: str, max_tokens: int = 3000) -> str | None:
         url = "https://openrouter.ai/api/v1/chat/completions"
         payload = {
             "model": "meta-llama/llama-3.1-8b-instruct:free",  # Completely free model
-            "messages": [{"role": "system", "content": SYS_PROMPT}, {"role": "user", "content": prompt}],
+            "messages": [{"role": "system", "content": sys_prompt}, {"role": "user", "content": prompt}],
             "max_tokens": max_tokens,
         }
         headers = {
@@ -131,7 +131,7 @@ async def _try_openrouter(prompt: str, max_tokens: int = 3000) -> str | None:
         logger.warning(f"OpenRouter failed: {e}")
     return None
 
-async def _smart_ai_call(prompt: str, max_tokens: int = 3000) -> str | None:
+async def _smart_ai_call(prompt: str, max_tokens: int = 3000, sys_prompt: str = SYS_PROMPT) -> str | None:
     """
     Rotates through all configured providers in priority order.
     Different models = separate rate limit buckets = more combined free quota!
@@ -142,38 +142,38 @@ async def _smart_ai_call(prompt: str, max_tokens: int = 3000) -> str | None:
       Cerebras → OpenRouter
     """
     # ── Gemini Tier ──────────────────────────────────────────────────────────
-    result = await _try_gemini(prompt, settings.GEMINI_API_KEY, settings.GEMINI_MODEL_1, max_tokens)
+    result = await _try_gemini(prompt, settings.GEMINI_API_KEY, settings.GEMINI_MODEL_1, max_tokens, sys_prompt)
     if result:
         return result
 
-    result = await _try_gemini(prompt, settings.GEMINI_API_KEY_2, settings.GEMINI_MODEL_2, max_tokens)
+    result = await _try_gemini(prompt, settings.GEMINI_API_KEY_2, settings.GEMINI_MODEL_2, max_tokens, sys_prompt)
     if result:
         return result
 
     # ── Groq Tier (each model has its own separate daily rate limit) ─────────
-    result = await _try_groq(prompt, settings.GROQ_API_KEY, settings.GROQ_MODEL_1, max_tokens)
+    result = await _try_groq(prompt, settings.GROQ_API_KEY, settings.GROQ_MODEL_1, max_tokens, sys_prompt)
     if result:
         return result
 
-    result = await _try_groq(prompt, settings.GROQ_API_KEY_2, settings.GROQ_MODEL_2, max_tokens)
+    result = await _try_groq(prompt, settings.GROQ_API_KEY_2, settings.GROQ_MODEL_2, max_tokens, sys_prompt)
     if result:
         return result
 
-    result = await _try_groq(prompt, settings.GROQ_API_KEY_3, settings.GROQ_MODEL_3, max_tokens)
+    result = await _try_groq(prompt, settings.GROQ_API_KEY_3, settings.GROQ_MODEL_3, max_tokens, sys_prompt)
     if result:
         return result
 
-    result = await _try_groq(prompt, settings.GROQ_API_KEY_4, settings.GROQ_MODEL_4, max_tokens)
+    result = await _try_groq(prompt, settings.GROQ_API_KEY_4, settings.GROQ_MODEL_4, max_tokens, sys_prompt)
     if result:
         return result
 
     # ── Cerebras Tier ────────────────────────────────────────────────────────
-    result = await _try_cerebras(prompt, max_tokens)
+    result = await _try_cerebras(prompt, max_tokens, sys_prompt)
     if result:
         return result
 
     # ── OpenRouter Tier ──────────────────────────────────────────────────────
-    result = await _try_openrouter(prompt, max_tokens)
+    result = await _try_openrouter(prompt, max_tokens, sys_prompt)
     if result:
         return result
 
@@ -423,7 +423,8 @@ You have vast general knowledge about all cybersecurity topics, threat actors, m
 If the user asks about recent platform data, here is the latest context from the local database:
 {db_context}
 
-Keep your answers concise, highly technical, and conversational. Do not use markdown headers unless necessary. Use plain text formatting.
+Provide highly detailed, structured, and comprehensive summaries similar to ChatGPT.
+Use rich Markdown formatting extensively: headers (##, ###), bullet points, bold text, and tables if applicable. Break down topics into 'Overview', 'Impact', 'Mitigation', etc.
 """
     
     # We will build a unified prompt since _smart_ai_call only takes a single prompt string,

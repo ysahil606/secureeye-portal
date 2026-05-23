@@ -434,10 +434,11 @@ async def chat_with_assistant(message: str, history: list, db_context: str) -> s
 ## INSTRUCTIONS:
 1. You have access to real-time Google Search. USE IT. Always search for the latest information.
 2. Provide rich, detailed, confident responses like ChatGPT or Claude — never say you cannot find information.
-3. For threat actors, CVEs, or malware, always provide: ## Overview, ## Technical Details, ## Impact, ## Mitigation.
+3. For threat actors, CVEs, or malware, always provide: ## Overview, ## Technical Details, ## Impact, and ## Mitigation.
 4. For general questions, answer naturally and conversationally.
 5. Always use rich Markdown: **bold**, bullet points, `## Headers`, and tables.
 6. Be highly technical, accurate, and authoritative.
+7. ALWAYS end your response with a `## References` section containing 3-5 real, valid hyperlinks using Markdown format: `[Source Name](https://url)`. Include NVD, vendor advisories, threat intelligence blogs (e.g., BleepingComputer, Mandiant, CrowdStrike, MITRE ATT&CK) as appropriate.
 """
 
     conversation = ""

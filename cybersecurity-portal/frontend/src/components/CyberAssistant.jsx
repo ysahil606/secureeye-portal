@@ -189,7 +189,7 @@ export default function CyberAssistant() {
                         th: ({node, ...props}) => <th style={{border:'1px solid rgba(139,92,246,0.3)', padding:'0.4em 0.6em', background:'rgba(88,28,135,0.3)', color:'#e9d5ff', textAlign:'left'}} {...props} />,
                         td: ({node, ...props}) => <td style={{border:'1px solid rgba(139,92,246,0.15)', padding:'0.4em 0.6em', color:'#d1d5db'}} {...props} />,
                         blockquote: ({node, ...props}) => <blockquote style={{borderLeft:'3px solid rgba(139,92,246,0.5)', paddingLeft:'0.8em', color:'#9ca3af', fontStyle:'italic', margin:'0.5em 0'}} {...props} />,
-                        a: ({node, ...props}) => <a style={{color:'#22d3ee', textDecoration:'underline'}} {...props} />,
+                        a: ({node, ...props}) => <a style={{color:'#22d3ee', textDecoration:'underline'}} target="_blank" rel="noopener noreferrer" {...props} />,
                       }}
                     >
                       {msg.content}

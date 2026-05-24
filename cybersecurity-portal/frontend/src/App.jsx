@@ -29,6 +29,7 @@ import AdvancedOpsSuite from './pages/AdvancedOpsSuite'
 import Settings from './pages/Settings'
 import RolePermissions from './pages/RolePermissions'
 import MediaHub from './pages/MediaHub'
+import MatrixTicker from './components/MatrixTicker'
 
 function PrivateRoute({ children, adminOnly, analystOnly, feature }) {
   const { user, loading, hasFeatureAccess } = useAuth()
@@ -86,6 +87,7 @@ export default function App() {
       <AuthProvider>
         <ResilienceWrapper>
           <AppRoutes />
+          <MatrixTicker />
         </ResilienceWrapper>
       </AuthProvider>
     </ThemeProvider>

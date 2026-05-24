@@ -21,9 +21,10 @@ from models import User, Sector, UserRole, Advisory, AdvisoryStatus, AdvisorySou
 from schemas import AdvisoryOut
 
 # Routes
-from routes import auth, advisories, dashboard, admin, collaboration, ai, reports, apt_router, war_room, sandbox, advanced, darkweb, cve_lookup, media
+from routes import auth, advisories, dashboard, admin, collaboration, ai, reports, apt_router, war_room, sandbox, advanced, darkweb, cve_lookup, media, ticker
 from services import threat_feeds
 from services.media_scraper import fetch_media_sync
+from services.ticker_service import update_ticker_cache
 from services.auto_enricher import auto_enrich_priority_iocs
 
 logging.basicConfig(
@@ -157,6 +158,7 @@ async def lifespan(app: FastAPI):
 
     # Start the Eternal Pulse Task
     pulse_task = asyncio.create_task(eternal_pulse())
+    ticker_task = asyncio.create_task(update_ticker_cache())
 
     if settings.WARM_START_FEEDS_ENABLED:
         logger.info("Initiating Warm Start: Synchronizing threat landscape...")
@@ -196,8 +198,10 @@ async def lifespan(app: FastAPI):
     yield
 
     pulse_task.cancel()
+    ticker_task.cancel()
     with suppress(asyncio.CancelledError):
         await pulse_task
+        await ticker_task
     scheduler.shutdown(wait=False)
     logger.info("Scheduler stopped")
 
@@ -266,6 +270,7 @@ app.include_router(advanced.router, prefix="/api")
 app.include_router(darkweb.router, prefix="/api")
 app.include_router(cve_lookup.router, prefix="/api/cve")
 app.include_router(media.router, prefix="/api")
+app.include_router(ticker.router, prefix="/api")
 
 
 @app.get("/api/health")

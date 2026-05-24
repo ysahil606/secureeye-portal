@@ -152,7 +152,7 @@ async def _check_emailrep(email: str) -> dict | None:
                         "id": f"er-cred-{sha256(email.encode()).hexdigest()[:8]}",
                         "email": email,
                         "source": "EmailRep.io — Credentials Database",
-                        "date": details.get("last_seen", datetime.utcnow().date().isoformat()),
+                        "date": details.get("last_seen") or "Unknown",
                         "severity": "critical",
                         "status": "open",
                         "has_password": True,
@@ -163,7 +163,7 @@ async def _check_emailrep(email: str) -> dict | None:
                         "id": f"er-breach-{sha256(email.encode()).hexdigest()[:8]}",
                         "email": email,
                         "source": "EmailRep.io — Data Breach",
-                        "date": details.get("last_seen", datetime.utcnow().date().isoformat()),
+                        "date": details.get("last_seen") or "Unknown",
                         "severity": "high",
                         "status": "open",
                         "has_password": False,
@@ -244,7 +244,7 @@ async def _check_leakcheck_public(keyword: str) -> list:
                     has_password = "password" in fields or "hash" in fields
                     for source in sources:
                         breach_name = source.get("name", "Unknown Breach")
-                        breach_date = source.get("date", datetime.utcnow().date().isoformat())[:10]
+                        breach_date = (source.get("date") or "Unknown")[:10]
                         leaks.append({
                             "id": f"lc-{sha256(breach_name.encode()).hexdigest()[:8]}",
                             "email": keyword,
@@ -291,7 +291,7 @@ async def _check_xposedornot(email: str) -> list:
                         "id": f"xon-{sha256(breach_name.encode()).hexdigest()[:8]}",
                         "email": email,
                         "source": f"XposedOrNot — {breach_name}",
-                        "date": datetime.utcnow().date().isoformat(),
+                        "date": "Unknown",
                         "severity": "high",
                         "status": "open",
                         "has_password": False,
@@ -341,7 +341,7 @@ async def _check_intelx(domain: str) -> list:
                                     "id": f"ix-{sha256(value.encode()).hexdigest()[:8]}",
                                     "email": value,
                                     "source": "IntelX Phonebook",
-                                    "date": datetime.utcnow().date().isoformat(),
+                                    "date": "Unknown",
                                     "severity": "high",
                                     "status": "open",
                                     "has_password": False,
@@ -460,7 +460,69 @@ async def _check_openphish(domain: str) -> list:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SOURCE 10: Optional paid sources (only if API keys configured)
+# SOURCE 11: Crt.sh — Certificate Transparency (Free, no key)
+# ─────────────────────────────────────────────────────────────────────────────
+async def _check_crt_sh(domain: str) -> list:
+    mentions = []
+    try:
+        async with httpx.AsyncClient(timeout=12) as client:
+            r = await client.get(
+                f"https://crt.sh/?q=%.{domain}&output=json",
+                headers=HEADERS
+            )
+            if r.status_code == 200:
+                data = r.json()
+                subdomains = set()
+                for cert in data:
+                    name_value = cert.get("name_value", "")
+                    for sub in name_value.split("\n"):
+                        sub = sub.strip().lower()
+                        if sub and "*" not in sub and sub != domain:
+                            subdomains.add(sub)
+                
+                # Report up to 5 exposed subdomains
+                for sub in list(subdomains)[:5]:
+                    mentions.append({
+                        "id": f"crt-{sha256(sub.encode()).hexdigest()[:8]}",
+                        "title": f"Crt.sh: Exposed Subdomain via SSL — {sub}",
+                        "snippet": f"Found in Certificate Transparency Logs. May expose dev/staging environments.",
+                        "onion_site": "crt.sh",
+                        "severity": "medium",
+                        "url": f"https://crt.sh/?q={sub}",
+                        "source_icon": "🔐"
+                    })
+    except Exception as e:
+        logger.warning(f"Crt.sh failed: {e}")
+    return mentions
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SOURCE 12: HackerTarget — DNS/Subdomain Intelligence (Free, no key)
+# ─────────────────────────────────────────────────────────────────────────────
+async def _check_hackertarget(domain: str) -> list:
+    mentions = []
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(f"https://api.hackertarget.com/hostsearch/?q={domain}")
+            if r.status_code == 200 and "error" not in r.text.lower():
+                lines = r.text.strip().split("\n")
+                if len(lines) > 0 and lines[0] != "":
+                    mentions.append({
+                        "id": f"ht-{sha256(domain.encode()).hexdigest()[:8]}",
+                        "title": f"HackerTarget: Host Search mapping",
+                        "snippet": f"Discovered {len(lines)} associated hosts/IPs mapped to this domain.",
+                        "onion_site": "hackertarget.com",
+                        "severity": "medium",
+                        "url": f"https://api.hackertarget.com/hostsearch/?q={domain}",
+                        "source_icon": "🎯"
+                    })
+    except Exception as e:
+        logger.warning(f"HackerTarget failed: {e}")
+    return mentions
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SOURCE 13: Optional paid sources (only if API keys configured)
 # ─────────────────────────────────────────────────────────────────────────────
 async def _check_leaklookup(keyword: str) -> list:
     if not getattr(settings, "LEAK_LOOKUP_API_KEY", ""):
@@ -481,7 +543,7 @@ async def _check_leaklookup(keyword: str) -> list:
                             "id": f"ll-{sha256(breach_name.encode()).hexdigest()[:8]}",
                             "email": keyword,
                             "source": f"Leak-Lookup — {breach_name}",
-                            "date": datetime.utcnow().date().isoformat(),
+                            "date": "Unknown",
                             "severity": "high",
                             "status": "open",
                             "has_password": True,
@@ -511,7 +573,7 @@ async def _check_breachdirectory(keyword: str) -> list:
                         "id": f"bd-{sha256(str(item).encode()).hexdigest()[:8]}",
                         "email": item.get("email") or keyword,
                         "source": f"BreachDirectory — {item.get('sources', ['Data Breach'])[0]}",
-                        "date": item.get("date", datetime.utcnow().date().isoformat()),
+                        "date": item.get("date") or "Unknown",
                         "severity": "critical" if item.get("password") else "high",
                         "status": "open",
                         "has_password": bool(item.get("password")),
@@ -567,6 +629,8 @@ async def scan_darkweb(
         tasks.append(("shodan", _check_shodan_ip(keyword)))
         tasks.append(("intelx", _check_intelx(keyword)))
         tasks.append(("leakcheck", _check_leakcheck_public(keyword)))
+        tasks.append(("crtsh", _check_crt_sh(keyword)))
+        tasks.append(("hackertarget", _check_hackertarget(keyword)))
         tasks.append(("leaklookup", _check_leaklookup(keyword)))
         tasks.append(("breachdir", _check_breachdirectory(keyword)))
 
@@ -644,6 +708,20 @@ async def scan_darkweb(
         if op_mentions:
             sources_checked.append("OpenPhish")
             mentions.extend(op_mentions)
+
+    # ── Process Crt.sh ───────────────────────────────────────────────────────
+    if "crtsh" in result_map and not isinstance(result_map["crtsh"], Exception):
+        crtsh_mentions = result_map["crtsh"]
+        if crtsh_mentions:
+            sources_checked.append("Crt.sh Certificate Logs")
+            mentions.extend(crtsh_mentions)
+
+    # ── Process HackerTarget ─────────────────────────────────────────────────
+    if "hackertarget" in result_map and not isinstance(result_map["hackertarget"], Exception):
+        ht_mentions = result_map["hackertarget"]
+        if ht_mentions:
+            sources_checked.append("HackerTarget")
+            mentions.extend(ht_mentions)
 
     # ── Process Shodan ───────────────────────────────────────────────────────
     if "shodan" in result_map and result_map["shodan"] and not isinstance(result_map["shodan"], Exception):

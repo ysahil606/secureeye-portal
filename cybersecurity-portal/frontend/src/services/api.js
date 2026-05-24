@@ -2,7 +2,10 @@ import axios from 'axios'
 
 // Prioritize environment variable, then current hostname, then fallback to local dev port
 const getBaseUrl = () => {
-  return 'https://140.238.166.249.nip.io/api'
+  if (import.meta.env.PROD) {
+    return 'https://140.238.166.249.nip.io/api'
+  }
+  return 'http://localhost:8000/api'
 }
 
 export const API_URL = getBaseUrl()

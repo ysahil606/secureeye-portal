@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   Activity, AlertTriangle, CheckCircle2, Copy, Database, Download, Eye,
-  ExternalLink, Ghost, Globe, Loader2, Lock, Mail, Plus, Search, ShieldCheck, ShieldAlert, Trash2
+  ExternalLink, Ghost, Globe, Loader2, Lock, Mail, Plus, Search, ShieldCheck, ShieldAlert, Trash2, X
 } from 'lucide-react'
 import api from '../services/api'
 import toast from 'react-hot-toast'
@@ -13,6 +13,7 @@ export default function DarkWebMonitor() {
   const [scanning, setScanning] = useState(false)
   const [results, setResults] = useState(null)
   const [activeTab, setActiveTab] = useState('leaks')
+  const [selectedLeak, setSelectedLeak] = useState(null)
   const [watchlist, setWatchlist] = useState(() => {
     try { return JSON.parse(localStorage.getItem('darkweb_watchlist') || '[]') } catch { return [] }
   })
@@ -258,7 +259,11 @@ export default function DarkWebMonitor() {
                       <tbody className="divide-y divide-dark-600/50">
                         {results.leaks.map((leak, i) => {
                           return (
-                            <tr key={leak.id || i} className="hover:bg-white/5 transition-colors group">
+                            <tr 
+                              key={leak.id || i} 
+                              className="hover:bg-white/5 transition-colors group cursor-pointer"
+                              onClick={() => setSelectedLeak(leak)}
+                            >
                               <td className="p-4 align-middle">
                                 <div className="w-4 h-4 rounded border border-slate-600 group-hover:border-purple-500 transition-colors mx-auto flex items-center justify-center">
                                   {resolvedLeaks.includes(leak.id || leak.email) && <CheckCircle2 className="w-3 h-3 text-green-400" />}
@@ -279,7 +284,9 @@ export default function DarkWebMonitor() {
                               <td className="p-4">
                                 <div className="flex flex-col items-start">
                                   <div className="flex items-center gap-1.5 text-slate-300 text-xs"><Database className="w-3.5 h-3.5 text-slate-500" /> {leak.date}</div>
-                                  <span className="text-[9px] font-bold text-orange-400 mt-1 uppercase bg-orange-500/10 px-1.5 py-0.5 rounded">Recent</span>
+                                  {leak.date !== "Unknown" && (
+                                    <span className="text-[9px] font-bold text-orange-400 mt-1 uppercase bg-orange-500/10 px-1.5 py-0.5 rounded">Recent</span>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -363,6 +370,86 @@ export default function DarkWebMonitor() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {selectedLeak && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl bg-dark-900 border border-purple-500/30 rounded-2xl shadow-neon-purple p-6 relative flex flex-col gap-6 animate-in zoom-in-95 duration-200">
+            
+            <button 
+              onClick={() => setSelectedLeak(null)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-4 border-b border-white/10 pb-4 pr-10">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center border border-purple-500/40">
+                <ShieldAlert className="w-6 h-6 text-purple-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white leading-tight">{selectedLeak.source}</h2>
+                <div className="text-sm text-slate-400 flex items-center gap-2 mt-1">
+                  <Database className="w-3.5 h-3.5" /> 
+                  Indexed: {selectedLeak.date}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-dark-800 rounded-xl p-4 border border-dark-600">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Target Identity</div>
+                <div className="font-mono text-white text-sm">{selectedLeak.email}</div>
+              </div>
+              <div className="bg-dark-800 rounded-xl p-4 border border-dark-600">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Threat Level</div>
+                <div className="flex items-center gap-2">
+                  <span className={clsx(
+                    "px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-widest",
+                    selectedLeak.severity === 'critical' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                  )}>
+                    {selectedLeak.severity}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-dark-800 rounded-xl p-5 border border-dark-600">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Exposed Information</div>
+              <p className="text-sm text-slate-300 leading-relaxed">
+                {selectedLeak.hint || "Raw breach data has been partially redacted to prevent abuse. General credential exposure is confirmed."}
+              </p>
+              
+              <div className="mt-4 flex flex-wrap gap-2">
+                {selectedLeak.has_password && (
+                  <span className="px-3 py-1.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-md text-xs font-bold font-mono flex items-center gap-2">
+                    <Lock className="w-3.5 h-3.5" /> Password Exposed
+                  </span>
+                )}
+                {selectedLeak.email && (
+                  <span className="px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-md text-xs font-bold font-mono flex items-center gap-2">
+                    <Mail className="w-3.5 h-3.5" /> Identity Exposed
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setSelectedLeak(null)} className="btn-ghost px-6">Close</button>
+              {!resolvedLeaks.includes(selectedLeak.id || selectedLeak.email) && (
+                <button 
+                  onClick={() => {
+                    markResolved(selectedLeak);
+                    setSelectedLeak(null);
+                  }} 
+                  className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/40 font-bold px-6 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Mark Resolved
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

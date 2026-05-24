@@ -12,12 +12,13 @@ Free Sources (No API Key Required):
   9. Crt.sh                  — certificate transparency
  10. Shodan InternetDB       — IP vulnerability data
  11. IntelX Phonebook        — public exposure search (no key, limited)
- 12. Local SecureEye DB      — our own advisories + IOCs
+ 12. LeakCheck.io Public API — billions of records, no key required
+ 13. Local SecureEye DB      — our own advisories + IOCs
 Optional (With API Key):
- 13. VirusTotal              — VIRUSTOTAL_API_KEY
- 14. AlienVault OTX          — ALIENVAULT_OTX_API_KEY
- 15. Leak-Lookup             — LEAK_LOOKUP_API_KEY
- 16. BreachDirectory         — BREACH_DIRECTORY_API_KEY
+ 14. VirusTotal              — VIRUSTOTAL_API_KEY
+ 15. AlienVault OTX          — ALIENVAULT_OTX_API_KEY
+ 16. Leak-Lookup             — LEAK_LOOKUP_API_KEY
+ 17. BreachDirectory         — BREACH_DIRECTORY_API_KEY
 """
 import httpx
 import hashlib
@@ -220,6 +221,42 @@ async def _check_urlscan(domain: str) -> list:
     except Exception as e:
         logger.warning(f"URLScan failed: {e}")
     return mentions
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SOURCE 4b: LeakCheck.io Public API (Free, no key required)
+# Accesses billions of breach records
+# ─────────────────────────────────────────────────────────────────────────────
+async def _check_leakcheck_public(keyword: str) -> list:
+    leaks = []
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            r = await client.get(
+                f"https://leakcheck.io/api/public?check={keyword}",
+                headers=HEADERS
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("success") and data.get("found", 0) > 0:
+                    sources = data.get("sources", [])
+                    fields = data.get("fields", [])
+                    has_password = "password" in fields or "hash" in fields
+                    for source in sources:
+                        breach_name = source.get("name", "Unknown Breach")
+                        breach_date = source.get("date", datetime.utcnow().date().isoformat())[:10]
+                        leaks.append({
+                            "id": f"lc-{sha256(breach_name.encode()).hexdigest()[:8]}",
+                            "email": keyword,
+                            "source": f"LeakCheck.io — {breach_name}",
+                            "date": breach_date,
+                            "severity": "critical" if has_password else "high",
+                            "status": "open",
+                            "has_password": has_password,
+                            "hint": f"Leaked fields: {', '.join(fields[:5])}" if fields else "Found in leak database",
+                        })
+    except Exception as e:
+        logger.warning(f"LeakCheck.io search failed: {e}")
+    return leaks
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -472,6 +509,7 @@ async def scan_darkweb(
     if is_email:
         tasks.append(("emailrep", _check_emailrep(keyword)))
         tasks.append(("intelx", _check_intelx(keyword)))
+        tasks.append(("leakcheck", _check_leakcheck_public(keyword)))
     
     if is_domain:
         tasks.append(("hibp_domain", _hibp_domain_breach_check(keyword)))
@@ -481,6 +519,7 @@ async def scan_darkweb(
         tasks.append(("openphish", _check_openphish(keyword)))
         tasks.append(("shodan", _check_shodan_ip(keyword)))
         tasks.append(("intelx", _check_intelx(keyword)))
+        tasks.append(("leakcheck", _check_leakcheck_public(keyword)))
         tasks.append(("leaklookup", _check_leaklookup(keyword)))
         tasks.append(("breachdir", _check_breachdirectory(keyword)))
 
@@ -581,6 +620,13 @@ async def scan_darkweb(
         if ix_leaks:
             sources_checked.append("IntelX Phonebook")
             leaks.extend(ix_leaks)
+
+    # ── Process LeakCheck ────────────────────────────────────────────────────
+    if "leakcheck" in result_map and not isinstance(result_map["leakcheck"], Exception):
+        lc_leaks = result_map["leakcheck"]
+        if lc_leaks:
+            sources_checked.append("LeakCheck.io")
+            leaks.extend(lc_leaks)
 
     # ── Process paid sources ─────────────────────────────────────────────────
     if "leaklookup" in result_map and not isinstance(result_map["leaklookup"], Exception):

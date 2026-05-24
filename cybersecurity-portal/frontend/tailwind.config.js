@@ -5,13 +5,13 @@ export default {
     extend: {
       colors: {
         dark: {
-          950: 'var(--bg-app)',
-          900: 'var(--bg-panel)',
-          800: 'var(--bg-card)',
-          750: 'var(--bg-card-hover)',
-          700: 'var(--border-light)',
-          600: 'var(--text-muted)',
-          500: 'var(--text-dim)',
+          950: 'rgb(var(--bg-app) / <alpha-value>)',
+          900: 'rgb(var(--bg-panel) / <alpha-value>)',
+          800: 'rgb(var(--bg-card) / <alpha-value>)',
+          750: 'rgb(var(--bg-card-hover) / <alpha-value>)',
+          700: 'rgb(var(--border-light) / <alpha-value>)',
+          600: 'rgb(var(--text-muted) / <alpha-value>)',
+          500: 'rgb(var(--text-dim) / <alpha-value>)',
         },
         accent: {
           red: '#ef4444',
@@ -22,8 +22,8 @@ export default {
           purple: '#a855f7',
           cyan: '#06b6d4',
           neon: '#00f2fe',
-          primary: 'var(--accent-primary)',
-          secondary: 'var(--accent-secondary)'
+          primary: 'rgb(var(--accent-primary) / <alpha-value>)',
+          secondary: 'rgb(var(--accent-secondary) / <alpha-value>)'
         }
       },
       fontFamily: {

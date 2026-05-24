@@ -66,7 +66,42 @@ export default function MediaHub() {
 
   const videos = filteredItems.filter(i => i.media_type === 'video')
   const podcasts = filteredItems.filter(i => i.media_type === 'podcast')
-  const articles = filteredItems.filter(i => i.media_type === 'article')
+  
+  // Mixed & Critical News Sorting Engine
+  const rawArticles = filteredItems.filter(i => i.media_type === 'article')
+  
+  const isCritical = (title) => {
+    const t = (title || '').toLowerCase()
+    return t.includes('critical') || t.includes('zero-day') || t.includes('0-day') || 
+           t.includes('ransomware') || t.includes('cve-') || t.includes('breach') || 
+           t.includes('emergency') || t.includes('exploit') || t.includes('hacked')
+  }
+
+  // Interleave sources (Round-Robin) to prevent one source from dominating the grid
+  const groupedArticles = {}
+  rawArticles.forEach(a => {
+    if (!groupedArticles[a.source_name]) groupedArticles[a.source_name] = []
+    groupedArticles[a.source_name].push(a)
+  })
+
+  const mixedArticles = []
+  let hasMore = true
+  let idx = 0
+  while (hasMore) {
+    hasMore = false
+    Object.keys(groupedArticles).forEach(source => {
+      if (groupedArticles[source][idx]) {
+        mixedArticles.push(groupedArticles[source][idx])
+        hasMore = true
+      }
+    })
+    idx++
+  }
+
+  // Sort critical items to the front
+  const criticalArticles = mixedArticles.filter(a => isCritical(a.title))
+  const regularArticles = mixedArticles.filter(a => !isCritical(a.title))
+  const articles = [...criticalArticles, ...regularArticles]
 
   // Keep hero item stable regardless of search
   const allVideos = items.filter(i => i.media_type === 'video')

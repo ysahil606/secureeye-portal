@@ -151,7 +151,7 @@ export default function MediaHub() {
     <div className="min-h-screen bg-bg-base pb-20 overflow-x-hidden">
       {/* Hero Section */}
       {heroItem && (
-        <div className="relative w-full h-[60vh] md:h-[70vh] mb-12 flex items-end">
+        <div className="relative w-full h-[40vh] md:h-[50vh] mb-8 flex items-end">
           <div className="absolute inset-0">
             {heroItem.thumbnail_url ? (
               <img src={heroItem.thumbnail_url} className="w-full h-full object-cover" alt="Hero" />
@@ -162,7 +162,7 @@ export default function MediaHub() {
             <div className="absolute inset-0 bg-gradient-to-r from-bg-base via-bg-base/40 to-transparent" />
           </div>
           
-          <div className="relative z-10 p-8 md:p-16 max-w-4xl">
+          <div className="relative z-10 p-6 md:p-10 max-w-4xl">
             <span className="px-3 py-1 bg-accent-primary text-dark-950 font-bold text-xs uppercase tracking-widest rounded-sm mb-4 inline-block">
               Latest from {heroItem.source_name}
             </span>
@@ -193,14 +193,14 @@ export default function MediaHub() {
       )}
 
       {/* Live Twitch Streams */}
-      <div className="mb-16 relative px-6 max-w-7xl mx-auto">
-        <h2 className="text-xl font-bold text-text-primary mb-6 flex items-center gap-2">
+      <div className="mb-8 relative px-6 max-w-7xl mx-auto">
+        <h2 className="text-xl font-bold text-text-primary mb-4 flex items-center gap-2">
           <Radio className="w-5 h-5 text-red-500 animate-pulse" />
           Live Hacker Streams
         </h2>
         
         <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1 aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-border-light/20 relative">
+          <div className="flex-1 h-[300px] md:h-[400px] lg:h-[450px] bg-black rounded-2xl overflow-hidden shadow-2xl border border-border-light/20 relative">
             <iframe
               src={`https://player.twitch.tv/?channel=${activeTwitchChannel}&parent=${window.location.hostname || 'localhost'}&parent=secure-portal.vercel.app`}
               frameBorder="0"
@@ -231,8 +231,8 @@ export default function MediaHub() {
       </div>
 
       {/* Search & Filters */}
-      <div className="max-w-7xl mx-auto px-6 mb-12">
-        <div className="flex flex-col md:flex-row gap-4 bg-bg-panel p-4 rounded-2xl border border-border-light shadow-lg">
+      <div className="max-w-7xl mx-auto px-6 mb-8">
+        <div className="flex flex-col md:flex-row gap-4 bg-bg-panel p-3 rounded-2xl border border-border-light shadow-lg">
           <div className="flex-1 relative">
             <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
             <input 
@@ -240,7 +240,7 @@ export default function MediaHub() {
               placeholder="Search videos, podcasts, and articles..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-dark-800 border border-border-light rounded-xl pl-12 pr-4 py-3 text-text-primary focus:outline-none focus:border-accent-primary transition-colors"
+              className="w-full bg-dark-800 border border-border-light rounded-xl pl-12 pr-4 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary transition-colors"
             />
           </div>
           <div className="w-full md:w-64 relative">
@@ -248,7 +248,7 @@ export default function MediaHub() {
             <select
               value={selectedSource}
               onChange={(e) => setSelectedSource(e.target.value)}
-              className="w-full bg-dark-800 border border-border-light rounded-xl pl-12 pr-4 py-3 text-text-primary focus:outline-none focus:border-accent-primary transition-colors appearance-none cursor-pointer"
+              className="w-full bg-dark-800 border border-border-light rounded-xl pl-12 pr-4 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary transition-colors appearance-none cursor-pointer"
             >
               {uniqueSources.map(s => (
                 <option key={s} value={s}>{s}</option>

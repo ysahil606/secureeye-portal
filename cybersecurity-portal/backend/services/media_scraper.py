@@ -14,14 +14,18 @@ SOURCES = [
     {"url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC6PTgowOUJV74zEQy5QqqTQ", "type": "video", "source": "DEF CON"},
     {"url": "https://www.youtube.com/feeds/videos.xml?channel_id=UClcE-kVhqyiHCcjYwcpfj9w", "type": "video", "source": "LiveOverflow"},
     {"url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCNbNGqL1eS6iF5K8uJ2KhtA", "type": "video", "source": "David Bombal"},
+    {"url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC3s0BtrBJpwNDaflRSoiieQ", "type": "video", "source": "Hak5"},
     
     # Podcasts (podcast)
     {"url": "https://feeds.megaphone.fm/darknetdiaries", "type": "podcast", "source": "Darknet Diaries"},
     {"url": "https://thecyberwire.libsyn.com/rss", "type": "podcast", "source": "CyberWire Daily"},
+    {"url": "https://feed.podbean.com/securityweekly/feed.xml", "type": "podcast", "source": "Security Weekly"},
     
     # News (article)
     {"url": "https://www.bleepingcomputer.com/feed/", "type": "article", "source": "BleepingComputer"},
     {"url": "https://feeds.feedburner.com/TheHackersNews", "type": "article", "source": "The Hacker News"},
+    {"url": "https://krebsonsecurity.com/feed/", "type": "article", "source": "Krebs on Security"},
+    {"url": "https://isc.sans.edu/rssfeed.xml", "type": "article", "source": "SANS ISC"},
 ]
 
 def fetch_media_sync():

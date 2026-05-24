@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Filter, RefreshCw, ChevronLeft, ChevronRight, ShieldAlert, Activity, Crosshair, AlertTriangle } from 'lucide-react'
 import api from '../services/api'
 import AdvisoryCard from '../components/AdvisoryCard'
+import CyberBriefingPlayer from '../components/CyberBriefingPlayer'
 import { useAuth } from '../context/AuthContext'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -54,6 +55,8 @@ export default function Advisories() {
 
   return (
     <div className="space-y-8 pb-10">
+      <CyberBriefingPlayer />
+      
       {/* Hero Header */}
       <div className="relative p-[1px] rounded-3xl overflow-hidden group">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/30 via-cyan-500/20 to-purple-600/30 blur-xl opacity-50 group-hover:opacity-70 transition-opacity duration-700" />

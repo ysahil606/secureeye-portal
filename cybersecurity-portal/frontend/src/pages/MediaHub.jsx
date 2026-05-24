@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import api from '../services/api'
-import { Play, Headphones, Newspaper, ExternalLink, X, Loader2, Search as SearchIcon, Filter, Radio } from 'lucide-react'
+import { Play, Headphones, Newspaper, ExternalLink, X, Loader2, Search as SearchIcon, Filter } from 'lucide-react'
 import clsx from 'clsx'
 
 export default function MediaHub() {
@@ -10,14 +10,6 @@ export default function MediaHub() {
   const [activeVideo, setActiveVideo] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSource, setSelectedSource] = useState('All')
-  const [activeTwitchChannel, setActiveTwitchChannel] = useState('hackthebox')
-
-  const twitchChannels = [
-    { id: 'hackthebox', name: 'HackTheBox (HTB)' },
-    { id: 'piratesoftware', name: 'PirateSoftware' },
-    { id: 'johnhammond', name: 'John Hammond' },
-    { id: 'thecybermentor', name: 'The Cyber Mentor' }
-  ]
 
   useEffect(() => {
     fetchMedia()
@@ -192,43 +184,7 @@ export default function MediaHub() {
         </div>
       )}
 
-      {/* Live Twitch Streams */}
-      <div className="mb-8 relative px-6 max-w-7xl mx-auto">
-        <h2 className="text-xl font-bold text-text-primary mb-4 flex items-center gap-2">
-          <Radio className="w-5 h-5 text-red-500 animate-pulse" />
-          Live Hacker Streams
-        </h2>
-        
-        <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1 h-[300px] md:h-[400px] lg:h-[450px] bg-black rounded-2xl overflow-hidden shadow-2xl border border-border-light/20 relative">
-            <iframe
-              src={`https://player.twitch.tv/?channel=${activeTwitchChannel}&parent=${window.location.hostname || 'localhost'}&parent=secure-portal.vercel.app`}
-              frameBorder="0"
-              allowFullScreen
-              scrolling="no"
-              className="absolute inset-0 w-full h-full"
-            ></iframe>
-          </div>
-          <div className="w-full lg:w-72 flex flex-col gap-3">
-            <h3 className="text-sm font-bold text-text-muted uppercase tracking-wider mb-2">Popular Channels</h3>
-            {twitchChannels.map(channel => (
-              <button
-                key={channel.id}
-                onClick={() => setActiveTwitchChannel(channel.id)}
-                className={clsx(
-                  "flex items-center justify-between p-4 rounded-xl border transition-all text-left",
-                  activeTwitchChannel === channel.id 
-                    ? "bg-accent-primary/10 border-accent-primary text-white shadow-[0_0_15px_rgba(6,182,212,0.1)]"
-                    : "bg-bg-panel border-border-light text-text-muted hover:border-text-muted hover:text-white"
-                )}
-              >
-                <span className="font-semibold">{channel.name}</span>
-                {activeTwitchChannel === channel.id && <Radio className="w-4 h-4 text-red-500 animate-pulse" />}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+
 
       {/* Search & Filters */}
       <div className="max-w-7xl mx-auto px-6 mb-8">

@@ -15,4 +15,4 @@ def get_media_items(db: Session = Depends(get_db)):
     Returns all media items sorted by newest first.
     The frontend can group them by 'media_type'.
     """
-    return db.query(MediaItem).order_by(desc(MediaItem.published_at)).limit(100).all()
+    return db.query(MediaItem).order_by(desc(MediaItem.published_at)).limit(250).all()

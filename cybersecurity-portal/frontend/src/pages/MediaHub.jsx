@@ -139,6 +139,45 @@ export default function MediaHub() {
     )
   }
 
+  const NewsGrid = ({ title, data, icon: Icon }) => {
+    if (!data || data.length === 0) return null
+    return (
+      <div className="mb-10 max-w-7xl mx-auto px-6">
+        <h2 className="text-xl font-bold text-text-primary mb-6 flex items-center gap-2">
+          <Icon className="w-5 h-5 text-accent-primary" />
+          {title}
+        </h2>
+        {/* Responsive grid to show 3 lines of news (12 items total on desktop) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {data.slice(0, 12).map(item => (
+            <div 
+              key={item.id} 
+              onClick={() => handleCardClick(item)}
+              className="group cursor-pointer flex flex-col h-full bg-bg-panel border border-border-light rounded-xl overflow-hidden hover:border-accent-primary/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_20px_rgba(0,0,0,0.3)]"
+            >
+              <div className="relative aspect-video bg-dark-800 overflow-hidden">
+                <ImageWithFallback src={item.thumbnail_url} alt={item.title} Icon={Icon} />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="bg-dark-800/90 text-white px-4 py-2 rounded-full font-medium flex items-center gap-2 backdrop-blur-sm border border-border-light">
+                    <ExternalLink className="w-4 h-4" /> Read Article
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 flex flex-col flex-1">
+                <div className="flex justify-between items-start mb-2">
+                  <p className="text-xs font-bold text-accent-primary uppercase tracking-wider">{item.source_name}</p>
+                  <p className="text-[10px] text-text-muted">{new Date(item.published_at).toLocaleDateString()}</p>
+                </div>
+                <h3 className="text-sm font-semibold text-text-primary line-clamp-3 group-hover:text-accent-primary transition-colors">{item.title}</h3>
+                <p className="text-xs text-text-muted line-clamp-2 mt-2 flex-1">{item.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-bg-base pb-20 overflow-x-hidden">
       {/* Hero Section */}
@@ -189,7 +228,9 @@ export default function MediaHub() {
       {/* Carousels */}
       <Carousel title="Trending Cyber Videos" data={videos} icon={Play} />
       <Carousel title="Top Security Podcasts" data={podcasts} icon={Headphones} />
-      <Carousel title="Latest News & Breaches" data={articles} icon={Newspaper} />
+      
+      {/* 3 Lines of Mixed News */}
+      <NewsGrid title="Latest Security News & Breaches" data={articles} icon={Newspaper} />
 
       {/* Video Modal */}
       {activeVideo && (

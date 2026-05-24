@@ -32,6 +32,10 @@ SOURCES = [
     {"url": "https://feeds.feedburner.com/TheHackersNews", "type": "article", "source": "The Hacker News"},
     {"url": "https://krebsonsecurity.com/feed/", "type": "article", "source": "Krebs on Security"},
     {"url": "https://isc.sans.edu/rssfeed.xml", "type": "article", "source": "SANS ISC"},
+    {"url": "https://cyberscoop.com/feed/", "type": "article", "source": "CyberScoop"},
+    {"url": "https://www.darkreading.com/rss.xml", "type": "article", "source": "Dark Reading"},
+    {"url": "https://www.securityweek.com/feed/", "type": "article", "source": "SecurityWeek"},
+    {"url": "https://gbhackers.com/feed/", "type": "article", "source": "GBHackers"},
 ]
 
 def fetch_media_sync():

@@ -21,8 +21,9 @@ from models import User, Sector, UserRole, Advisory, AdvisoryStatus, AdvisorySou
 from schemas import AdvisoryOut
 
 # Routes
-from routes import auth, advisories, dashboard, admin, collaboration, ai, reports, apt_router, war_room, sandbox, advanced, darkweb, cve_lookup
+from routes import auth, advisories, dashboard, admin, collaboration, ai, reports, apt_router, war_room, sandbox, advanced, darkweb, cve_lookup, media
 from services import threat_feeds
+from services.media_scraper import fetch_media_sync
 from services.auto_enricher import auto_enrich_priority_iocs
 
 logging.basicConfig(
@@ -160,6 +161,7 @@ async def lifespan(app: FastAPI):
     if settings.WARM_START_FEEDS_ENABLED:
         logger.info("Initiating Warm Start: Synchronizing threat landscape...")
         scheduler.add_job(threat_feeds.run_all_feeds_sync, "date", run_date=datetime.now(), id="warm_start_feeds")
+        scheduler.add_job(fetch_media_sync, "date", run_date=datetime.now(), id="warm_start_media")
 
     # Schedule feed polling
     scheduler.add_job(
@@ -167,6 +169,15 @@ async def lifespan(app: FastAPI):
         "interval",
         minutes=settings.FEED_POLL_INTERVAL_MINUTES,
         id="feed_poll",
+        replace_existing=True,
+    )
+    
+    # Schedule media hub polling (every 3 hours)
+    scheduler.add_job(
+        fetch_media_sync,
+        "interval",
+        hours=3,
+        id="media_poll",
         replace_existing=True,
     )
     
@@ -254,6 +265,7 @@ app.include_router(sandbox.router, prefix="/api")
 app.include_router(advanced.router, prefix="/api")
 app.include_router(darkweb.router, prefix="/api")
 app.include_router(cve_lookup.router, prefix="/api/cve")
+app.include_router(media.router, prefix="/api")
 
 
 @app.get("/api/health")

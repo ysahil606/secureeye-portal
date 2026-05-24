@@ -18,6 +18,7 @@ const FEATURES = [
   { id: 'iocs', label: 'IOC Management', desc: 'Indicators of Compromise DB' },
   { id: 'deepscan', label: 'DeepScan Lab', desc: 'Advanced sandbox analysis' },
   { id: 'darkweb', label: 'Dark Web Monitor', desc: 'Track leak sites and forums' },
+  { id: 'media', label: 'Media Hub', desc: 'Hacker News & Cyber Videos' },
   { id: 'advanced', label: 'Advanced Center', desc: 'Advanced tools & settings' },
   { id: 'security', label: 'Security Settings', desc: 'Personal app security' },
   { id: 'settings', label: 'App Settings', desc: 'Theme & appearance' }

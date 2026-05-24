@@ -304,3 +304,19 @@ class RolePermissionOut(BaseModel):
 
 class RolePermissionUpdate(BaseModel):
     permissions: List[RolePermissionCreate]
+
+
+# ── Media Hub ─────────────────────────────────────────────────────────────────
+class MediaItemOut(BaseModel):
+    id: int
+    title: str
+    description: Optional[str]
+    url: str
+    thumbnail_url: Optional[str]
+    source_name: str
+    media_type: str
+    published_at: Optional[datetime]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Shield, LayoutDashboard, FileText, Search,
   Bell, Users, Layers, Cpu, Clock, Bug,
-  Network, LogOut, ChevronRight, Sparkles, X, Ghost, LifeBuoy, BrainCircuit, Settings as SettingsIcon
+  Network, LogOut, ChevronRight, Sparkles, X, Ghost, LifeBuoy, BrainCircuit, Settings as SettingsIcon, Tv
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import clsx from 'clsx'
@@ -17,6 +17,7 @@ const navItems = [
   { to: '/iocs',        icon: Network,          label: 'IOC Management',  feature: 'iocs' },
   { to: '/deepscan',    icon: Cpu,              label: 'DeepScan Lab',    feature: 'deepscan' },
   { to: '/darkweb',     icon: Ghost,            label: 'Dark Web Monitor',feature: 'darkweb' },
+  { to: '/media',       icon: Tv,               label: 'Media Hub',       feature: 'media' },
   { to: '/advanced',    icon: Sparkles,         label: 'Advanced Center', feature: 'advanced' },
 
   { separator: true },

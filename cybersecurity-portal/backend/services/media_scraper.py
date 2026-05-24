@@ -15,11 +15,17 @@ SOURCES = [
     {"url": "https://www.youtube.com/feeds/videos.xml?channel_id=UClcE-kVhqyiHCcjYwcpfj9w", "type": "video", "source": "LiveOverflow"},
     {"url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCNbNGqL1eS6iF5K8uJ2KhtA", "type": "video", "source": "David Bombal"},
     {"url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC3s0BtrBJpwNDaflRSoiieQ", "type": "video", "source": "Hak5"},
+    {"url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCa6eh7gCkpPo5XXUDfygQQA", "type": "video", "source": "IppSec"},
+    {"url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCQN2DsjnGkh3_Q84zHxt8PA", "type": "video", "source": "STÖK"},
+    {"url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCXXB02d9L0vL1W1gEa2pP-Q", "type": "video", "source": "Black Hills InfoSec"},
     
     # Podcasts (podcast)
     {"url": "https://feeds.megaphone.fm/darknetdiaries", "type": "podcast", "source": "Darknet Diaries"},
     {"url": "https://thecyberwire.libsyn.com/rss", "type": "podcast", "source": "CyberWire Daily"},
     {"url": "https://feed.podbean.com/securityweekly/feed.xml", "type": "podcast", "source": "Security Weekly"},
+    {"url": "https://feeds.bitesz.com/smashingsecurity", "type": "podcast", "source": "Smashing Security"},
+    {"url": "https://risky.biz/feeds/risky-business/", "type": "podcast", "source": "Risky Business"},
+    {"url": "https://malicious.life/feed/podcast/", "type": "podcast", "source": "Malicious Life"},
     
     # News (article)
     {"url": "https://www.bleepingcomputer.com/feed/", "type": "article", "source": "BleepingComputer"},

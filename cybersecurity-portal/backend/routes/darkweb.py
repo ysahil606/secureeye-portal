@@ -13,7 +13,8 @@ Free Sources (No API Key Required):
  10. Shodan InternetDB       — IP vulnerability data
  11. IntelX Phonebook        — public exposure search (no key, limited)
  12. LeakCheck.io Public API — billions of records, no key required
- 13. Local SecureEye DB      — our own advisories + IOCs
+ 13. XposedOrNot Public API  — billions of records for emails, no key
+ 14. Local SecureEye DB      — our own advisories + IOCs
 Optional (With API Key):
  14. VirusTotal              — VIRUSTOTAL_API_KEY
  15. AlienVault OTX          — ALIENVAULT_OTX_API_KEY
@@ -256,6 +257,51 @@ async def _check_leakcheck_public(keyword: str) -> list:
                         })
     except Exception as e:
         logger.warning(f"LeakCheck.io search failed: {e}")
+    return leaks
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SOURCE 4c: XposedOrNot Public API (Free, no key required)
+# Accesses billions of breach records for email checks
+# ─────────────────────────────────────────────────────────────────────────────
+async def _check_xposedornot(email: str) -> list:
+    leaks = []
+    if "@" not in email:
+        return leaks
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            r = await client.get(
+                f"https://api.xposedornot.com/v1/check-email/{email}",
+                headers=HEADERS
+            )
+            if r.status_code == 200:
+                data = r.json()
+                breach_lists = data.get("breaches", [])
+                
+                # The API sometimes returns a list of lists or just a list of strings
+                flat_breaches = []
+                for b in breach_lists:
+                    if isinstance(b, list):
+                        flat_breaches.extend(b)
+                    else:
+                        flat_breaches.append(b)
+
+                for breach_name in flat_breaches:
+                    leaks.append({
+                        "id": f"xon-{sha256(breach_name.encode()).hexdigest()[:8]}",
+                        "email": email,
+                        "source": f"XposedOrNot — {breach_name}",
+                        "date": datetime.utcnow().date().isoformat(),
+                        "severity": "high",
+                        "status": "open",
+                        "has_password": False,
+                        "hint": "Email found in XposedOrNot breach database",
+                    })
+            elif r.status_code == 404:
+                # 404 means no breaches found for this email on XposedOrNot
+                pass
+    except Exception as e:
+        logger.warning(f"XposedOrNot search failed: {e}")
     return leaks
 
 
@@ -510,6 +556,7 @@ async def scan_darkweb(
         tasks.append(("emailrep", _check_emailrep(keyword)))
         tasks.append(("intelx", _check_intelx(keyword)))
         tasks.append(("leakcheck", _check_leakcheck_public(keyword)))
+        tasks.append(("xposedornot", _check_xposedornot(keyword)))
     
     if is_domain:
         tasks.append(("hibp_domain", _hibp_domain_breach_check(keyword)))
@@ -627,6 +674,13 @@ async def scan_darkweb(
         if lc_leaks:
             sources_checked.append("LeakCheck.io")
             leaks.extend(lc_leaks)
+
+    # ── Process XposedOrNot ──────────────────────────────────────────────────
+    if "xposedornot" in result_map and not isinstance(result_map["xposedornot"], Exception):
+        xon_leaks = result_map["xposedornot"]
+        if xon_leaks:
+            sources_checked.append("XposedOrNot")
+            leaks.extend(xon_leaks)
 
     # ── Process paid sources ─────────────────────────────────────────────────
     if "leaklookup" in result_map and not isinstance(result_map["leaklookup"], Exception):

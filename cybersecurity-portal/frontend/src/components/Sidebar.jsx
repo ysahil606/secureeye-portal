@@ -8,34 +8,28 @@ import { useAuth } from '../context/AuthContext'
 import clsx from 'clsx'
 
 const navItems = [
-  { to: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard',       roles: ['admin','analyst','viewer'] },
-  { to: '/advisories',  icon: FileText,         label: 'Advisories',      roles: ['admin','analyst','viewer'] },
-  { to: '/search',      icon: Search,           label: 'Smart Search',    roles: ['admin','analyst','viewer'] },
-  { to: '/timeline',    icon: Clock,            label: 'Threat Timeline', roles: ['admin','analyst','viewer'] },
-  { to: '/zero-days',   icon: Bug,              label: 'Zero-Day Tracker',roles: ['admin','analyst','viewer'] },
-  { to: '/misp',        icon: Shield,           label: 'MISP Integration',roles: ['admin','analyst','viewer'] },
-  { to: '/iocs',        icon: Network,          label: 'IOC Management',  roles: ['admin','analyst','viewer'] },
-  { to: '/deepscan',    icon: Cpu,              label: 'DeepScan Lab',    roles: ['admin','analyst','viewer'] },
-  { to: '/darkweb',     icon: Ghost,            label: 'Dark Web Monitor',roles: ['admin','analyst','viewer'] },
-
-  { to: '/advanced',    icon: Sparkles,         label: 'Advanced Center', roles: ['admin','analyst','viewer'] },
-
+  { to: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard',       feature: 'dashboard' },
+  { to: '/advisories',  icon: FileText,         label: 'Advisories',      feature: 'advisories' },
+  { to: '/search',      icon: Search,           label: 'Smart Search',    feature: 'search' },
+  { to: '/timeline',    icon: Clock,            label: 'Threat Timeline', feature: 'timeline' },
+  { to: '/zero-days',   icon: Bug,              label: 'Zero-Day Tracker',feature: 'zero-days' },
+  { to: '/misp',        icon: Shield,           label: 'MISP Integration',feature: 'misp' },
+  { to: '/iocs',        icon: Network,          label: 'IOC Management',  feature: 'iocs' },
+  { to: '/deepscan',    icon: Cpu,              label: 'DeepScan Lab',    feature: 'deepscan' },
+  { to: '/darkweb',     icon: Ghost,            label: 'Dark Web Monitor',feature: 'darkweb' },
+  { to: '/advanced',    icon: Sparkles,         label: 'Advanced Center', feature: 'advanced' },
 
   { separator: true },
-  { to: '/admin/users', icon: Users,            label: 'User Management', roles: ['admin'] },
-  { to: '/admin/sectors',icon: Layers,          label: 'Manage Sectors',  roles: ['admin'] },
-  { to: '/admin/feeds', icon: Cpu,              label: 'Feed Logs',       roles: ['admin','analyst','viewer'] },
-  { to: '/settings',    icon: SettingsIcon,     label: 'Settings',        roles: ['admin','analyst','viewer'] },
+  { to: '/admin/users', icon: Users,            label: 'User Management', feature: 'admin_users' },
+  { to: '/admin/sectors',icon: Layers,          label: 'Manage Sectors',  feature: 'admin_sectors' },
+  { to: '/admin/feeds', icon: Cpu,              label: 'Feed Logs',       feature: 'admin_feeds' },
+  { to: '/admin/permissions', icon: Shield,     label: 'Role Permissions',feature: 'admin_permissions' },
+  { to: '/settings',    icon: SettingsIcon,     label: 'Settings',        feature: 'settings' },
 ]
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen = false, onMobileClose = () => {} }) {
-  const { user, logout } = useAuth()
+  const { user, logout, hasFeatureAccess } = useAuth()
   const navigate = useNavigate()
-
-  const hasRole = (roles) => {
-    if (!user) return false
-    return roles.includes(user.role)
-  }
 
   const handleLogout = () => {
     logout()
@@ -49,7 +43,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen = false, o
         if (item.separator) return (
           <div key={i} className="my-2 border-t border-dark-600" />
         )
-        if (!hasRole(item.roles)) return null
+        if (!hasFeatureAccess(item.feature)) return null
         return (
           <NavLink key={item.to} to={item.to}
             onClick={onMobileClose}

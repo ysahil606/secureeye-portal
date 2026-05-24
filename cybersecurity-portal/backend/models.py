@@ -208,3 +208,11 @@ class FeedLog(Base):
     status = Column(String)
     error_msg = Column(Text)
     run_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class RolePermission(Base):
+    __tablename__ = "role_permissions"
+    id = Column(Integer, primary_key=True, index=True)
+    role = Column(String, index=True)  # 'analyst', 'viewer'
+    feature = Column(String, index=True) # 'dashboard', 'advisories', 'search', etc.
+    is_allowed = Column(Boolean, default=True)

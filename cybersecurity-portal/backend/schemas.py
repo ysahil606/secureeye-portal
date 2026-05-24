@@ -286,3 +286,21 @@ class TaskOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+# Permissions
+class RolePermissionCreate(BaseModel):
+    role: str
+    feature: str
+    is_allowed: bool
+
+class RolePermissionOut(BaseModel):
+    id: int
+    role: str
+    feature: str
+    is_allowed: bool
+
+    class Config:
+        from_attributes = True
+
+class RolePermissionUpdate(BaseModel):
+    permissions: List[RolePermissionCreate]

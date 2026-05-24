@@ -27,9 +27,10 @@ import DarkWebMonitor from './pages/DarkWebMonitor'
 import SecuritySettings from './pages/SecuritySettings'
 import AdvancedOpsSuite from './pages/AdvancedOpsSuite'
 import Settings from './pages/Settings'
+import RolePermissions from './pages/RolePermissions'
 
-function PrivateRoute({ children, adminOnly, analystOnly }) {
-  const { user, loading } = useAuth()
+function PrivateRoute({ children, adminOnly, analystOnly, feature }) {
+  const { user, loading, hasFeatureAccess } = useAuth()
   if (loading) return (
     <div className="min-h-screen bg-dark-900 flex items-center justify-center">
       <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
@@ -38,6 +39,7 @@ function PrivateRoute({ children, adminOnly, analystOnly }) {
   if (!user) return <Navigate to="/login" replace />
   if (adminOnly && user.role !== 'admin') return <Navigate to="/dashboard" replace />
   if (analystOnly && !['admin', 'analyst'].includes(user.role)) return <Navigate to="/dashboard" replace />
+  if (feature && !hasFeatureAccess(feature)) return <Navigate to="/dashboard" replace />
   return children
 }
 
@@ -48,26 +50,27 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
       <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/advisories" element={<Advisories />} />
-        <Route path="/advisories/new" element={<PrivateRoute analystOnly><AdvisoryForm /></PrivateRoute>} />
-        <Route path="/advisories/:id" element={<AdvisoryDetail />} />
-        <Route path="/advisories/:id/edit" element={<PrivateRoute analystOnly><AdvisoryForm /></PrivateRoute>} />
-        <Route path="/search" element={<SmartSearch />} />
-        <Route path="/timeline" element={<ThreatTimeline />} />
-        <Route path="/zero-days" element={<ZeroDayTracker />} />
-        <Route path="/iocs" element={<IOCManagement />} />
-        <Route path="/misp" element={<MISPIntegration />} />
-        <Route path="/alerts" element={<PrivateRoute analystOnly><AlertLogs /></PrivateRoute>} />
+        <Route path="/dashboard" element={<PrivateRoute feature="dashboard"><Dashboard /></PrivateRoute>} />
+        <Route path="/advisories" element={<PrivateRoute feature="advisories"><Advisories /></PrivateRoute>} />
+        <Route path="/advisories/new" element={<PrivateRoute analystOnly feature="advisories"><AdvisoryForm /></PrivateRoute>} />
+        <Route path="/advisories/:id" element={<PrivateRoute feature="advisories"><AdvisoryDetail /></PrivateRoute>} />
+        <Route path="/advisories/:id/edit" element={<PrivateRoute analystOnly feature="advisories"><AdvisoryForm /></PrivateRoute>} />
+        <Route path="/search" element={<PrivateRoute feature="search"><SmartSearch /></PrivateRoute>} />
+        <Route path="/timeline" element={<PrivateRoute feature="timeline"><ThreatTimeline /></PrivateRoute>} />
+        <Route path="/zero-days" element={<PrivateRoute feature="zero-days"><ZeroDayTracker /></PrivateRoute>} />
+        <Route path="/iocs" element={<PrivateRoute feature="iocs"><IOCManagement /></PrivateRoute>} />
+        <Route path="/misp" element={<PrivateRoute feature="misp"><MISPIntegration /></PrivateRoute>} />
+        <Route path="/alerts" element={<PrivateRoute analystOnly feature="advisories"><AlertLogs /></PrivateRoute>} />
         <Route path="/admin/users" element={<PrivateRoute adminOnly><UserManagement /></PrivateRoute>} />
         <Route path="/admin/sectors" element={<PrivateRoute adminOnly><ManageSectors /></PrivateRoute>} />
-        <Route path="/admin/feeds" element={<FeedLogs />} />
-        <Route path="/advanced" element={<AdvancedSecurityCenter />} />
-        <Route path="/advanced-ops" element={<AdvancedOpsSuite />} />
-        <Route path="/deepscan" element={<DeepScan />} />
-        <Route path="/darkweb" element={<DarkWebMonitor />} />
-        <Route path="/security" element={<SecuritySettings />} />
-        <Route path="/settings" element={<Settings />} />
+        <Route path="/admin/feeds" element={<PrivateRoute adminOnly><FeedLogs /></PrivateRoute>} />
+        <Route path="/admin/permissions" element={<PrivateRoute adminOnly><RolePermissions /></PrivateRoute>} />
+        <Route path="/advanced" element={<PrivateRoute feature="advanced"><AdvancedSecurityCenter /></PrivateRoute>} />
+        <Route path="/advanced-ops" element={<PrivateRoute feature="advanced"><AdvancedOpsSuite /></PrivateRoute>} />
+        <Route path="/deepscan" element={<PrivateRoute feature="deepscan"><DeepScan /></PrivateRoute>} />
+        <Route path="/darkweb" element={<PrivateRoute feature="darkweb"><DarkWebMonitor /></PrivateRoute>} />
+        <Route path="/security" element={<PrivateRoute feature="security"><SecuritySettings /></PrivateRoute>} />
+        <Route path="/settings" element={<PrivateRoute feature="settings"><Settings /></PrivateRoute>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

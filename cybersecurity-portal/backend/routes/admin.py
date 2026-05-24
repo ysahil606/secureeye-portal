@@ -5,12 +5,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from database import get_db
-from models import User, Sector, IOC, FeedLog, UserRole
+from models import User, Sector, IOC, FeedLog, UserRole, RolePermission
 from auth import get_current_active_user, require_role, hash_password
 from schemas import (
     UserCreate, UserUpdate, UserOut,
     SectorCreate, SectorOut,
     IOCCreate, IOCOut, IOCSearchOut, IOCExternalResultOut,
+    RolePermissionOut, RolePermissionUpdate, RolePermissionCreate
 )
 from services import threat_feeds
 from services.ioc_scorer import score_ioc
@@ -470,3 +471,31 @@ async def delete_ioc(
         raise HTTPException(status_code=404, detail="IOC not found")
     db.delete(ioc)
     db.commit()
+
+
+# ── Role Permissions ──────────────────────────────────────────────────────────
+@router.get("/permissions", response_model=List[RolePermissionOut])
+async def get_all_permissions(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(UserRole.admin)),
+):
+    return db.query(RolePermission).all()
+
+
+@router.put("/permissions", response_model=dict)
+async def update_permissions(
+    data: RolePermissionUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(UserRole.admin)),
+):
+    # Truncate and replace or update
+    db.query(RolePermission).delete()
+    for perm in data.permissions:
+        new_perm = RolePermission(
+            role=perm.role,
+            feature=perm.feature,
+            is_allowed=perm.is_allowed
+        )
+        db.add(new_perm)
+    db.commit()
+    return {"status": "success", "message": "Permissions updated successfully"}

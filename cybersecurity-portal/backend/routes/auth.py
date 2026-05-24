@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import User
+from models import User, RolePermission
+from typing import List
 from auth import (
     verify_password, hash_password,
     create_access_token, create_refresh_token, decode_token,
@@ -51,3 +52,19 @@ async def refresh(req: RefreshRequest, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserOut)
 async def me(current_user: User = Depends(get_current_active_user)):
     return current_user
+
+
+@router.get("/me/permissions", response_model=List[str])
+async def my_permissions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    if current_user.role == "admin":
+        return ["*"]
+    
+    perms = db.query(RolePermission).filter(
+        RolePermission.role == current_user.role,
+        RolePermission.is_allowed == True
+    ).all()
+    
+    return [p.feature for p in perms]

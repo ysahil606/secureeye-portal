@@ -1,8 +1,11 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+import re
+import sys
 
+css_path = r'c:\Users\Sahil\Dropbox\My PC (LAPTOP-MQVV34RN)\Desktop\secureeye-portal\cybersecurity-portal\frontend\src\index.css'
+with open(css_path, 'r', encoding='utf-8') as f:
+    css = f.read()
 
+theme_vars = '''
 :root, [data-theme="cyber-default"] {
   --bg-app: #020617;
   --bg-panel: #0a0e1a;
@@ -138,119 +141,53 @@
   --neon-glow-pri: rgba(252, 238, 33, 0.6);
   --neon-glow-sec: rgba(240, 14, 181, 0.6);
 }
+'''
 
+if 'var(--bg-app)' not in css:
+    css = css.replace('@tailwind utilities;', '@tailwind utilities;\n\n' + theme_vars)
 
-@layer base {
-  * { box-sizing: border-box; }
-  html { font-family: 'Inter', 'Outfit', sans-serif; }
-  body {
+    css = re.sub(
+        r'body\s*\{[^}]*\}', 
+        '''body {
   background-color: var(--bg-app);
   background-image: var(--bg-mesh);
   background-attachment: fixed;
   @apply text-slate-100 min-h-screen;
   margin: 0;
   transition: background-color 0.5s ease, background-image 0.5s ease;
-}
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #475569; }
-  
-  /* Force dark mode styling on native select dropdowns */
-  select option {
+}''', 
+        css, 
+        flags=re.MULTILINE
+    )
+
+    css = re.sub(
+        r'select option\s*\{[^}]*\}',
+        '''select option {
   background-color: var(--bg-card);
   color: var(--text-main);
   padding: 8px;
-}
-  select optgroup {
+}''', css
+    )
+    css = re.sub(
+        r'select optgroup\s*\{[^}]*\}',
+        '''select optgroup {
   background-color: var(--bg-app);
   color: var(--accent-primary);
   font-weight: bold;
-}
-}
+}''', css
+    )
 
-@layer components {
-  .card {
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-    @apply bg-dark-800/60 backdrop-blur-xl border border-white/5 rounded-2xl;
-  }
-  .card-hover {
-    @apply transition-all duration-300 hover:bg-[#151e32]/80 hover:-translate-y-1 hover:shadow-[0_0_15px_var(--neon-glow-pri)] hover:border-accent-primary/30;
-  }
-  .btn-primary { @apply bg-gradient-to-r from-accent-primary to-accent-secondary text-white font-bold px-6 py-2.5 rounded-xl transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-  .btn-primary:hover:not(:disabled) { box-shadow: 0 0 15px var(--neon-glow-sec); opacity: 0.9; transform: translateY(-1px); }
-  .btn-danger {
-    @apply bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold px-6 py-2.5 rounded-xl transition-all shadow-lg hover:shadow-neon-red;
-  }
-  .btn-ghost {
-    @apply text-slate-400 hover:text-white hover:bg-white/5 px-4 py-2.5 rounded-xl transition-colors backdrop-blur-md;
-  }
-  .input {
-    @apply bg-dark-900/50 backdrop-blur-md border border-white/10 text-white rounded-xl px-4 py-3
-           placeholder-slate-500 focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20
-           transition-all w-full shadow-inner;
-  }
-  .badge-critical {
-    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide
-           bg-red-500/10 text-red-400 border border-red-500/30 shadow-[0_0_10px_rgba(239,68,68,0.2)];
-  }
-  .badge-high {
-    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide
-           bg-orange-500/10 text-orange-400 border border-orange-500/30;
-  }
-  .badge-medium {
-    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide
-           bg-yellow-500/10 text-yellow-400 border border-yellow-500/30;
-  }
-  .badge-low {
-    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide
-           bg-green-500/10 text-green-400 border border-green-500/30;
-  }
-  .badge-informational {
-    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide
-           bg-blue-500/10 text-blue-400 border border-blue-500/30;
-  }
-  .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400;
-  }
-}
+    css = css.replace('hover:shadow-[0_0_15px_rgba(59,130,246,0.5)]', 'hover:shadow-[0_0_15px_var(--neon-glow-pri)]')
+    css = css.replace('hover:border-blue-500/30', 'hover:border-accent-primary/30')
 
-/* Animated scanning line for critical banner */
-@keyframes scan {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
-}
-.scan-line {
-  animation: scan 3s linear infinite;
-}
+    css = re.sub(
+        r'\.btn-primary\s*\{\s*@apply\s+bg-gradient-to-r\s+from-blue-600\s+to-purple-600\s+hover:from-blue-500\s+hover:to-purple-500\s+text-white\s+font-bold\s+px-6\s+py-2\.5\s+rounded-xl\s+transition-all\s+shadow-lg\s+hover:shadow-neon-purple([^}]*)\}',
+        '.btn-primary { @apply bg-gradient-to-r from-accent-primary to-accent-secondary text-white font-bold px-6 py-2.5 rounded-xl transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }\n  .btn-primary:hover:not(:disabled) { box-shadow: 0 0 15px var(--neon-glow-sec); opacity: 0.9; transform: translateY(-1px); }',
+        css
+    )
 
-/* Pulse for critical indicators */
-@keyframes threat-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-.threat-pulse { animation: threat-pulse 1.5s ease-in-out infinite; }
-
-/* AI Audio Visualization Bars */
-@keyframes audio-bar {
-  0%, 100% { height: 4px; }
-  50% { height: 16px; }
-}
-.animate-audio-bar-1 { animation: audio-bar 0.8s ease-in-out infinite; }
-.animate-audio-bar-2 { animation: audio-bar 0.8s ease-in-out infinite 0.2s; }
-.animate-audio-bar-3 { animation: audio-bar 0.8s ease-in-out infinite 0.4s; }
-
-/* Mobile Utilities */
-.safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-  height: calc(4rem + env(safe-area-inset-bottom));
-}
-
-/* Sweep Width Animation for Progress Bars */
-@keyframes sweepWidth {
-  0% { max-width: 0%; }
-  100% { max-width: 100%; }
-}
-.animate-sweep-width {
-  animation: sweepWidth 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
+    with open(css_path, 'w', encoding='utf-8') as f:
+        f.write(css)
+    print("CSS updated successfully")
+else:
+    print("CSS already contains dynamic variables.")

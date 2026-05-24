@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import { startBackendKeepAlive } from './services/resilience'
 import Layout from './components/Layout'
 import AppLock from './components/AppLock'
@@ -25,6 +26,7 @@ import DeepScan from './pages/DeepScan'
 import DarkWebMonitor from './pages/DarkWebMonitor'
 import SecuritySettings from './pages/SecuritySettings'
 import AdvancedOpsSuite from './pages/AdvancedOpsSuite'
+import Settings from './pages/Settings'
 
 function PrivateRoute({ children, adminOnly, analystOnly }) {
   const { user, loading } = useAuth()
@@ -65,6 +67,7 @@ function AppRoutes() {
         <Route path="/deepscan" element={<DeepScan />} />
         <Route path="/darkweb" element={<DarkWebMonitor />} />
         <Route path="/security" element={<SecuritySettings />} />
+        <Route path="/settings" element={<Settings />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -74,11 +77,13 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <ResilienceWrapper>
-        <AppRoutes />
-      </ResilienceWrapper>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <ResilienceWrapper>
+          <AppRoutes />
+        </ResilienceWrapper>
+      </AuthProvider>
+    </ThemeProvider>
   )
 }
 

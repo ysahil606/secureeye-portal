@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Shield, LayoutDashboard, FileText, Search,
   Bell, Users, Layers, Cpu, Clock, Bug,
-  Network, LogOut, ChevronRight, Sparkles, X, Ghost, LifeBuoy, BrainCircuit
+  Network, LogOut, ChevronRight, Sparkles, X, Ghost, LifeBuoy, BrainCircuit, Settings as SettingsIcon
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import clsx from 'clsx'
@@ -25,6 +25,7 @@ const navItems = [
   { to: '/admin/users', icon: Users,            label: 'User Management', roles: ['admin'] },
   { to: '/admin/sectors',icon: Layers,          label: 'Manage Sectors',  roles: ['admin'] },
   { to: '/admin/feeds', icon: Cpu,              label: 'Feed Logs',       roles: ['admin','analyst','viewer'] },
+  { to: '/settings',    icon: SettingsIcon,     label: 'Settings',        roles: ['admin','analyst','viewer'] },
 ]
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen = false, onMobileClose = () => {} }) {

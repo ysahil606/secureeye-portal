@@ -5,13 +5,13 @@ export default {
     extend: {
       colors: {
         dark: {
-          950: '#020617', // Deeper black for app background
-          900: '#0a0e1a',
-          800: '#0f172a', // Sidebar/cards
-          750: '#151e32',
-          700: '#1e293b', // Lighter cards/borders
-          600: '#334155',
-          500: '#475569',
+          950: 'var(--bg-app)',
+          900: 'var(--bg-panel)',
+          800: 'var(--bg-card)',
+          750: 'var(--bg-card-hover)',
+          700: 'var(--border-light)',
+          600: 'var(--text-muted)',
+          500: 'var(--text-dim)',
         },
         accent: {
           red: '#ef4444',
@@ -21,7 +21,9 @@ export default {
           blue: '#3b82f6',
           purple: '#a855f7',
           cyan: '#06b6d4',
-          neon: '#00f2fe'
+          neon: '#00f2fe',
+          primary: 'var(--accent-primary)',
+          secondary: 'var(--accent-secondary)'
         }
       },
       fontFamily: {

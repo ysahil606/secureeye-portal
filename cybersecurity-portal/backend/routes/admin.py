@@ -1,5 +1,7 @@
 from typing import List, Optional
 import re
+import os
+import platform
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -498,4 +500,50 @@ async def update_permissions(
         )
         db.add(new_perm)
     db.commit()
-    return {"status": "success", "message": "Permissions updated successfully"}
+    return {"status": "ok"}
+
+
+# ── System Telemetry ──────────────────────────────────────────────────────────
+@router.get("/system/metrics")
+async def get_system_metrics(current_user=Depends(require_role(UserRole.admin))):
+    import os
+    import platform
+    metrics = {
+        "cpu_load": 0.0,
+        "ram_usage_percent": 0.0,
+        "ram_total_gb": 0.0,
+        "ram_used_gb": 0.0,
+        "os": platform.system()
+    }
+    
+    # Fast native reads for Linux (our VPS)
+    if platform.system() == "Linux":
+        try:
+            # CPU Load (1-minute average)
+            with open("/proc/loadavg", "r") as f:
+                load_str = f.read().split()[0]
+                # Normalize load by CPU count
+                cpu_count = os.cpu_count() or 1
+                load_pct = (float(load_str) / cpu_count) * 100
+                metrics["cpu_load"] = min(round(load_pct, 1), 100.0)
+                
+            # RAM Usage
+            with open("/proc/meminfo", "r") as f:
+                meminfo = f.readlines()
+                mem_total = 0
+                mem_available = 0
+                for line in meminfo:
+                    if line.startswith("MemTotal:"):
+                        mem_total = int(line.split()[1])
+                    elif line.startswith("MemAvailable:"):
+                        mem_available = int(line.split()[1])
+                
+                if mem_total > 0:
+                    used = mem_total - mem_available
+                    metrics["ram_usage_percent"] = round((used / mem_total) * 100, 1)
+                    metrics["ram_total_gb"] = round(mem_total / 1024 / 1024, 2)
+                    metrics["ram_used_gb"] = round(used / 1024 / 1024, 2)
+        except Exception:
+            pass
+            
+    return metrics

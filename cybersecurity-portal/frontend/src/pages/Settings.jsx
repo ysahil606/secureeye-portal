@@ -1,6 +1,8 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useTheme } from '../context/ThemeContext'
-import { Sun, Moon, Sparkles, Monitor, Sliders } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import api from '../services/api'
+import { Sun, Moon, Sparkles, Monitor, Sliders, Cpu, Activity, Server } from 'lucide-react'
 
 const themes = [
   { id: 'cyber-default', name: 'Cyber Default', color: '#3b82f6' },
@@ -15,6 +17,26 @@ const themes = [
 
 export default function Settings() {
   const { theme, setTheme, lighting, setLighting } = useTheme()
+  const { isAdmin } = useAuth()
+  
+  const [metrics, setMetrics] = useState({ cpu_load: 0, ram_usage_percent: 0, ram_total_gb: 0, ram_used_gb: 0, os: 'Unknown' })
+
+  useEffect(() => {
+    if (!isAdmin) return
+    
+    const fetchMetrics = async () => {
+      try {
+        const res = await api.get('/admin/system/metrics')
+        setMetrics(res.data)
+      } catch (err) {
+        // Silently fail if endpoint isn't ready
+      }
+    }
+    
+    fetchMetrics()
+    const interval = setInterval(fetchMetrics, 5000)
+    return () => clearInterval(interval)
+  }, [isAdmin])
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-fade-in-up">
@@ -103,6 +125,60 @@ export default function Settings() {
           </div>
         </div>
       </div>
+
+      {/* Admin System Telemetry */}
+      {isAdmin && (
+        <div className="card p-6 border-accent-secondary/30 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Server className="w-32 h-32 text-accent-secondary" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2 relative z-10">
+            <Activity className="w-5 h-5 text-accent-secondary" />
+            Live Server Telemetry (Admin Only)
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+            {/* CPU Metric */}
+            <div className="bg-dark-900/60 p-5 rounded-xl border border-white/5 flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2 text-slate-300 font-medium">
+                  <Cpu className="w-4 h-4 text-cyan-400" /> CPU Load (1m Avg)
+                </div>
+                <span className="text-2xl font-black text-cyan-400">{metrics.cpu_load.toFixed(1)}%</span>
+              </div>
+              <div className="w-full bg-dark-950 rounded-full h-3 mb-1 overflow-hidden border border-white/5">
+                <div 
+                  className="h-full rounded-full transition-all duration-1000 ease-out"
+                  style={{ 
+                    width: `${metrics.cpu_load}%`,
+                    background: metrics.cpu_load > 80 ? '#ef4444' : metrics.cpu_load > 50 ? '#f59e0b' : '#22d3ee',
+                    boxShadow: `0 0 10px ${metrics.cpu_load > 80 ? '#ef4444' : metrics.cpu_load > 50 ? '#f59e0b' : '#22d3ee'}`
+                  }}
+                ></div>
+              </div>
+            </div>
+
+            {/* RAM Metric */}
+            <div className="bg-dark-900/60 p-5 rounded-xl border border-white/5 flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2 text-slate-300 font-medium">
+                  <Server className="w-4 h-4 text-purple-400" /> RAM Usage ({metrics.os})
+                </div>
+                <div className="text-right">
+                  <span className="text-2xl font-black text-purple-400">{metrics.ram_usage_percent.toFixed(1)}%</span>
+                  <div className="text-xs text-slate-500">{metrics.ram_used_gb.toFixed(1)}GB / {metrics.ram_total_gb.toFixed(1)}GB</div>
+                </div>
+              </div>
+              <div className="w-full bg-dark-950 rounded-full h-3 mb-1 overflow-hidden border border-white/5">
+                <div 
+                  className="h-full rounded-full transition-all duration-1000 ease-out bg-gradient-to-r from-purple-500 to-fuchsia-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"
+                  style={{ width: `${metrics.ram_usage_percent}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

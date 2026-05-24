@@ -186,34 +186,6 @@ export default function MediaHub() {
 
 
 
-      {/* Search & Filters */}
-      <div className="max-w-7xl mx-auto px-6 mb-8">
-        <div className="flex flex-col md:flex-row gap-4 bg-bg-panel p-3 rounded-2xl border border-border-light shadow-lg">
-          <div className="flex-1 relative">
-            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
-            <input 
-              type="text" 
-              placeholder="Search videos, podcasts, and articles..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-dark-800 border border-border-light rounded-xl pl-12 pr-4 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary transition-colors"
-            />
-          </div>
-          <div className="w-full md:w-64 relative">
-            <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
-            <select
-              value={selectedSource}
-              onChange={(e) => setSelectedSource(e.target.value)}
-              className="w-full bg-dark-800 border border-border-light rounded-xl pl-12 pr-4 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-primary transition-colors appearance-none cursor-pointer"
-            >
-              {uniqueSources.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
       {/* Carousels */}
       <Carousel title="Trending Cyber Videos" data={videos} icon={Play} />
       <Carousel title="Top Security Podcasts" data={podcasts} icon={Headphones} />

@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     # App
     APP_NAME: str = "Secure Cybersecurity Advisory Portal"
     SECRET_KEY: str = "change-this-to-a-very-secret-key-in-production"
-    FORCE_ADMIN_RESET: bool = False
+    FORCE_ADMIN_RESET: bool = True
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7

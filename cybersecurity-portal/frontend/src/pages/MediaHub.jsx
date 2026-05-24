@@ -59,6 +59,25 @@ export default function MediaHub() {
 
   const heroItem = videos.length > 0 ? videos[0] : null
 
+  const ImageWithFallback = ({ src, alt, Icon }) => {
+    const [error, setError] = useState(false)
+    if (!src || error) {
+      return (
+        <div className="w-full h-full flex items-center justify-center bg-dark-800">
+          <Icon className="w-12 h-12 text-dark-500" />
+        </div>
+      )
+    }
+    return (
+      <img 
+        src={src} 
+        alt={alt} 
+        onError={() => setError(true)}
+        className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" 
+      />
+    )
+  }
+
   const Carousel = ({ title, data, icon: Icon }) => {
     if (!data || data.length === 0) return null
     return (
@@ -75,13 +94,7 @@ export default function MediaHub() {
               className="flex-none w-72 md:w-80 group cursor-pointer snap-start"
             >
               <div className="relative rounded-xl overflow-hidden aspect-video bg-bg-panel border border-border-light group-hover:border-accent-primary/50 transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-[0_10px_20px_rgba(0,0,0,0.3)]">
-                {item.thumbnail_url ? (
-                  <img src={item.thumbnail_url} alt={item.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-dark-800">
-                    <Icon className="w-12 h-12 text-dark-500" />
-                  </div>
-                )}
+                <ImageWithFallback src={item.thumbnail_url} alt={item.title} Icon={Icon} />
                 
                 {/* Play Overlay for Videos */}
                 {item.media_type === 'video' && (

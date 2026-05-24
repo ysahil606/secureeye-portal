@@ -54,6 +54,10 @@ def fetch_media_sync():
                         thumbnail_url = entry.media_thumbnail[0].get("url")
                     elif "media_content" in entry and len(entry.media_content) > 0:
                         thumbnail_url = entry.media_content[0].get("url")
+                    elif "image" in entry and "href" in entry.image:
+                        thumbnail_url = entry.image.href
+                    elif hasattr(feed, "feed") and hasattr(feed.feed, "image") and hasattr(feed.feed.image, "href"):
+                        thumbnail_url = feed.feed.image.href
                     
                     # Extract summary (clean HTML tags if necessary, but we'll store max 500 chars)
                     summary = entry.get("summary", "")

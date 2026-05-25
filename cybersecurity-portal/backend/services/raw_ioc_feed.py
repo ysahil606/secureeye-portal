@@ -803,9 +803,12 @@ async def fetch_all_raw_iocs(
     if severity_filter:
         all_iocs = [i for i in all_iocs if i["severity"] == severity_filter]
 
-    # Sort: critical first, then high, medium, low
+    # Sort: critical first, then high, medium, low, then by newest first_seen
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
-    all_iocs.sort(key=lambda x: severity_order.get(x.get("severity", "low"), 4))
+    all_iocs.sort(key=lambda x: (
+        severity_order.get(x.get("severity", "low"), 4),
+        -(datetime.fromisoformat(x["first_seen"]).timestamp() if x.get("first_seen") else 0)
+    ))
 
     # Summary stats
     severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}

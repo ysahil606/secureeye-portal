@@ -118,8 +118,8 @@ export default function CyberWeather() {
       })
     }
 
-    // Process a new threat every 1.5 to 3 seconds for dramatic effect
-    const delay = Math.random() * 1500 + 1500
+    // Process a new threat every 0.3 to 0.8 seconds to ensure continuous multiple arcs on screen
+    const delay = Math.random() * 500 + 300
     const timeoutId = setTimeout(processNextThreat, delay)
 
     return () => clearTimeout(timeoutId)
@@ -129,8 +129,8 @@ export default function CyberWeather() {
   return (
     <div className="relative w-full overflow-hidden rounded-3xl border border-white/5 bg-[#020617] shadow-2xl" style={{ height: 'calc(100vh - 120px)' }}>
       
-      {/* 3D Globe Canvas */}
-      <div className="absolute inset-0 z-0">
+      {/* 3D Globe Canvas - shifted left to not hide behind the attack log sidebar */}
+      <div className="absolute inset-0 z-0" style={{ transform: 'translateX(-15%)' }}>
         <Globe
           ref={globeRef}
           width={windowSize.width}

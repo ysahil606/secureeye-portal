@@ -74,7 +74,8 @@ export default function CyberWeather() {
       setFeedQueue(prev => {
         if (prev.length === 0) return prev
         const threat = prev[0]
-        const remaining = prev.slice(1)
+        // Push the item to the back of the queue so it infinitely loops
+        const remaining = [...prev.slice(1), threat]
 
         // Assign random origin
         const region = THREAT_REGIONS[Math.floor(Math.random() * THREAT_REGIONS.length)]

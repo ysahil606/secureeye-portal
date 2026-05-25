@@ -621,8 +621,12 @@ function RawIOCFeed() {
     }
   }, [typeFilter, sevFilter, sourceFilter])
 
-  // Auto-load on first render
-  useEffect(() => { loadFeed() }, [])
+  // Auto-load and setup polling (every 5 minutes)
+  useEffect(() => { 
+    loadFeed() 
+    const interval = setInterval(loadFeed, 300000)
+    return () => clearInterval(interval)
+  }, [loadFeed])
 
   const iocs = feedData?.iocs || []
   const totalPages = Math.ceil(iocs.length / PAGE_SIZE)

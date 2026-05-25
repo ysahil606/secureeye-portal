@@ -45,7 +45,11 @@ export default function Advisories() {
     finally { setLoading(false) }
   }, [page, filters, setSearchParams])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { 
+    fetchData() 
+    const interval = setInterval(fetchData, 300000)
+    return () => clearInterval(interval)
+  }, [fetchData])
   useEffect(() => {
     api.get('/admin/sectors').then(r => setSectors(r.data)).catch(() => {})
   }, [])

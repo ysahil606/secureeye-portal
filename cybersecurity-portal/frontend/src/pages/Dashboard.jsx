@@ -79,14 +79,19 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
-  useEffect(() => {
+  const fetchStats = () => {
     api.get('/dashboard/stats')
       .then(r => setStats(r.data))
       .catch((err) => {
         console.error('Dashboard error:', err.response?.data || err.message)
-        toast.error('Failed to load dashboard')
       })
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    fetchStats()
+    const interval = setInterval(fetchStats, 300000) // 5 minutes
+    return () => clearInterval(interval)
   }, [])
 
   const handleTriggerFeed = async () => {

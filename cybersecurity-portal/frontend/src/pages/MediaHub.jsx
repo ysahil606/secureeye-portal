@@ -13,6 +13,8 @@ export default function MediaHub() {
 
   useEffect(() => {
     fetchMedia()
+    const interval = setInterval(fetchMedia, 300000)
+    return () => clearInterval(interval)
   }, [])
 
   const fetchMedia = async () => {

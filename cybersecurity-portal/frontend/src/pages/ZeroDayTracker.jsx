@@ -27,7 +27,7 @@ export default function ZeroDayTracker() {
   const [aiSummary, setAiSummary] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
 
-  useEffect(() => {
+  const loadData = () => {
     // Fetch normal tracked zero-days
     api.get('/advisories', { params: { is_zero_day: true, per_page: 100 } })
       .then(r => setItems(r.data.items || []))
@@ -39,6 +39,12 @@ export default function ZeroDayTracker() {
       .then(r => setActivelyExploited(r.data.data || []))
       .catch(() => {})
       .finally(() => setLoadingExploited(false))
+  }
+
+  useEffect(() => {
+    loadData()
+    const interval = setInterval(loadData, 300000)
+    return () => clearInterval(interval)
   }, [])
 
   const handleSearch = async (e) => {

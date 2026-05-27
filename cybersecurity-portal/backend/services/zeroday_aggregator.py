@@ -85,8 +85,8 @@ async def get_unified_zerodays(limit: int = 50, force_refresh: bool = False):
         
         kev_data, pz_cves, edb_cves = await asyncio.gather(kev_task, pz_task, edb_task)
         
-    # Sort KEV descending by date Added
-    kev_data.sort(key=lambda x: x.get("dateAdded", ""), reverse=True)
+    # Sort KEV descending by date Added, tie-break with cveID descending so newer vulnerabilities show first
+    kev_data.sort(key=lambda x: (x.get("dateAdded", ""), x.get("cveID", "")), reverse=True)
     
     mnc_vulns = []
     other_vulns = []

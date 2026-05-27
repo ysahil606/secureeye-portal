@@ -13,6 +13,8 @@ const themes = [
   { id: 'stealth-mode', name: 'Stealth Mode', color: '#a3a3a3' },
   { id: 'midnight-gold', name: 'Midnight Gold', color: '#ffc107' },
   { id: 'cyberpunk-city', name: 'Cyberpunk City', color: '#fcee21' },
+  { id: 'dracula', name: 'Dracula', color: '#bd93f9' },
+  { id: 'synthwave', name: 'Synthwave', color: '#ff9933' },
 ]
 
 export default function Settings() {

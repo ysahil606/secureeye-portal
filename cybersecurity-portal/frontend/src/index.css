@@ -101,25 +101,25 @@
   --accent-primary: 163 163 163;
   --accent-secondary: 115 115 115;
   --bg-mesh: none;
-  --neon-glow-pri: rgba(163, 163, 163, 0.3);
-  --neon-glow-sec: rgba(115, 115, 115, 0.3);
+  --neon-glow-pri: rgba(255, 255, 255, 0.1);
+  --neon-glow-sec: rgba(255, 255, 255, 0.1);
 }
 
 [data-theme="midnight-gold"] {
-  --bg-app: 0 11 24;
-  --bg-panel: 0 18 38;
-  --bg-card: 0 26 51;
-  --bg-card-hover: 0 43 94;
-  --border-light: 0 58 128;
-  --text-muted: 74 74 74;
-  --text-dim: 184 151 66;
-  --text-main: #fcf1d4;
+  --bg-app: 10 10 12;
+  --bg-panel: 15 15 18;
+  --bg-card: 20 20 24;
+  --bg-card-hover: 30 30 35;
+  --border-light: 45 45 35;
+  --text-muted: 100 100 90;
+  --text-dim: 160 160 150;
+  --text-main: #fcf4c9;
   
-  --accent-primary: 255 193 7;
-  --accent-secondary: 255 152 0;
-  --bg-mesh: radial-gradient(at 50% 10%, rgba(255, 193, 7, 0.08) 0px, transparent 60%);
-  --neon-glow-pri: rgba(255, 193, 7, 0.6);
-  --neon-glow-sec: rgba(255, 152, 0, 0.6);
+  --accent-primary: 255 204 0;
+  --accent-secondary: 255 230 100;
+  --bg-mesh: radial-gradient(at 50% 10%, rgba(255, 204, 0, 0.05) 0px, transparent 60%);
+  --neon-glow-pri: rgba(255, 204, 0, 0.5);
+  --neon-glow-sec: rgba(255, 230, 100, 0.5);
 }
 
 [data-theme="cyberpunk-city"] {
@@ -137,6 +137,40 @@
   --bg-mesh: radial-gradient(at 10% 90%, rgba(240, 14, 181, 0.15) 0px, transparent 50%), radial-gradient(at 90% 10%, rgba(252, 238, 33, 0.15) 0px, transparent 50%);
   --neon-glow-pri: rgba(252, 238, 33, 0.6);
   --neon-glow-sec: rgba(240, 14, 181, 0.6);
+}
+
+[data-theme="dracula"] {
+  --bg-app: 40 42 54;
+  --bg-panel: 68 71 90;
+  --bg-card: 40 42 54;
+  --bg-card-hover: 68 71 90;
+  --border-light: 98 114 164;
+  --text-muted: 98 114 164;
+  --text-dim: 139 233 253;
+  --text-main: #f8f8f2;
+  
+  --accent-primary: 255 121 198;
+  --accent-secondary: 189 147 249;
+  --bg-mesh: radial-gradient(at 30% 0%, rgba(255, 121, 198, 0.15) 0px, transparent 50%), radial-gradient(at 70% 100%, rgba(189, 147, 249, 0.1) 0px, transparent 50%);
+  --neon-glow-pri: rgba(255, 121, 198, 0.5);
+  --neon-glow-sec: rgba(189, 147, 249, 0.5);
+}
+
+[data-theme="synthwave"] {
+  --bg-app: 15 15 35;
+  --bg-panel: 25 20 50;
+  --bg-card: 30 25 60;
+  --bg-card-hover: 45 35 80;
+  --border-light: 80 50 120;
+  --text-muted: 120 70 150;
+  --text-dim: 180 90 200;
+  --text-main: #ff9933;
+  
+  --accent-primary: 255 153 51;
+  --accent-secondary: 255 0 128;
+  --bg-mesh: linear-gradient(180deg, rgba(15,15,35,1) 0%, rgba(45,20,70,1) 100%);
+  --neon-glow-pri: rgba(255, 153, 51, 0.6);
+  --neon-glow-sec: rgba(255, 0, 128, 0.6);
 }
 
 

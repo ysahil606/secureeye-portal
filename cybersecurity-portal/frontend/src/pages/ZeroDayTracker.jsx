@@ -36,7 +36,23 @@ export default function ZeroDayTracker() {
       
     // Fetch Actively Exploited list
     api.get('/cve/actively-exploited', { params: { limit: 50 } })
-      .then(r => setActivelyExploited(r.data.data || []))
+      .then(r => {
+        let rawData = r.data.data || []
+        const MNC_LIST = ["Microsoft", "Apple", "Google", "Cisco", "Fortinet", "Palo Alto", "VMware", "Oracle", "Adobe", "Atlassian", "Ivanti", "Trend Micro"]
+        
+        rawData.sort((a, b) => {
+          const aIsMnc = MNC_LIST.some(m => (a.vendorProject || "").toLowerCase().includes(m.toLowerCase())) ? 1 : 0
+          const bIsMnc = MNC_LIST.some(m => (b.vendorProject || "").toLowerCase().includes(m.toLowerCase())) ? 1 : 0
+          
+          if (aIsMnc !== bIsMnc) return bIsMnc - aIsMnc // MNCs first
+          
+          if (a.dateAdded === b.dateAdded) {
+            return (b.cveID || "").localeCompare(a.cveID || "")
+          }
+          return new Date(b.dateAdded) - new Date(a.dateAdded)
+        })
+        setActivelyExploited(rawData)
+      })
       .catch(() => {})
       .finally(() => setLoadingExploited(false))
   }

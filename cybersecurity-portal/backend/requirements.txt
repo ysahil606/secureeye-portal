@@ -23,3 +23,8 @@ reportlab
 psycopg2-binary
 gunicorn
 googlesearch-python
+# Phishing Monitor v2
+dnstwist
+tldextract
+asyncwhois
+dnspython

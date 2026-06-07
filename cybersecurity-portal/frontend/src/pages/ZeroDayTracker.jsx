@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bug, ExternalLink, ShieldAlert, Target, Shield, Clock, ChevronRight, Search, X, Sparkles, Loader2, AlertTriangle } from 'lucide-react'
+import { Bug, ExternalLink, ShieldAlert, Target, Shield, Clock, ChevronRight, Search, X, Sparkles, Loader2, AlertTriangle, Activity } from 'lucide-react'
 import api from '../services/api'
 import SeverityBadge from '../components/SeverityBadge'
 import { cvssColor, formatDateTime } from '../utils/helpers'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts'
 
 const STATUS_CONFIG = {
   'Exploited in the Wild': { icon: Target,      text: '#ef4444', bg: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.3)', shadow: '0 0 20px rgba(239,68,68,0.2)' },
@@ -115,6 +116,45 @@ export default function ZeroDayTracker() {
       </div>
     )
   }
+
+  // Generate Chart Data from activelyExploited list
+  const getChartData = () => {
+    if (!activelyExploited || activelyExploited.length === 0) return []
+    
+    // Group by Date
+    const countsByDate = {}
+    activelyExploited.forEach(vuln => {
+      const d = vuln.dateAdded || 'Unknown'
+      countsByDate[d] = (countsByDate[d] || 0) + 1
+    })
+    
+    // Convert to array and sort by date
+    const sortedData = Object.keys(countsByDate)
+      .sort((a, b) => new Date(a) - new Date(b))
+      .map(date => ({
+        date,
+        count: countsByDate[date]
+      }))
+      
+    // Return last 30 entries to keep chart readable
+    return sortedData.slice(-30)
+  }
+  
+  const getVendorData = () => {
+    if (!activelyExploited || activelyExploited.length === 0) return []
+    const counts = {}
+    activelyExploited.forEach(vuln => {
+      const v = vuln.vendorProject || 'Unknown'
+      counts[v] = (counts[v] || 0) + 1
+    })
+    return Object.keys(counts)
+      .map(vendor => ({ vendor, count: counts[vendor] }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10) // Top 10 vendors
+  }
+
+  const trendData = getChartData()
+  const vendorData = getVendorData()
 
   return (
     <div className="space-y-6 relative">
@@ -240,9 +280,11 @@ export default function ZeroDayTracker() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <Target className="w-5 h-5 text-red-500" />
-              Actively Exploited
+              Zero-Day Feed
             </h2>
-            <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold bg-slate-800/50 px-2 py-1 rounded">Top 50 • 6hr Sync</div>
+            <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold bg-slate-800/50 px-2 py-1 rounded flex items-center gap-1">
+              <Clock className="w-3 h-3" /> 6HR SYNC
+            </div>
           </div>
           
           {loadingExploited ? (
@@ -260,6 +302,11 @@ export default function ZeroDayTracker() {
                       <span className="text-xs font-mono font-bold bg-red-500/10 text-red-400 px-2 py-0.5 rounded border border-red-500/20">
                         {vuln.cveID}
                       </span>
+                      {vuln.is_zdi_upcoming && (
+                        <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center gap-1" title="Upcoming Zero-Day reported by Zero Day Initiative">
+                          <Activity className="w-2.5 h-2.5" /> Unpatched (ZDI)
+                        </span>
+                      )}
                       {vuln.is_project_zero && (
                         <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center gap-1" title="Tracked by Google Project Zero">
                           <Shield className="w-2.5 h-2.5" /> Project Zero
@@ -296,6 +343,59 @@ export default function ZeroDayTracker() {
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Analytics Graph Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 animate-fade-up" style={{ animationDelay: '0.5s' }}>
+        <div className="glass-panel rounded-2xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-3 opacity-10"><Activity className="w-20 h-20" /></div>
+          <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-6 flex items-center gap-2">
+            <Target className="w-4 h-4 text-blue-400" />
+            Zero-Day Threat Trend
+          </h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trendData}>
+                <defs>
+                  <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="date" stroke="#64748b" fontSize={10} tickMargin={10} minTickGap={20} />
+                <YAxis stroke="#64748b" fontSize={10} allowDecimals={false} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', color: '#fff' }}
+                  itemStyle={{ color: '#ef4444', fontWeight: 'bold' }}
+                />
+                <Area type="monotone" dataKey="count" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="glass-panel rounded-2xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-3 opacity-10"><Bug className="w-20 h-20" /></div>
+          <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-6 flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-purple-400" />
+            Top Affected Vendors
+          </h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={vendorData} layout="vertical" margin={{ left: 30 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
+                <XAxis type="number" stroke="#64748b" fontSize={10} allowDecimals={false} />
+                <YAxis type="category" dataKey="vendor" stroke="#94a3b8" fontSize={10} width={80} />
+                <Tooltip 
+                  cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
+                  contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: '8px', color: '#fff' }}
+                />
+                <Bar dataKey="count" fill="#a855f7" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 

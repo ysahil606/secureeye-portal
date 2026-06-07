@@ -21,7 +21,7 @@ from models import User, Sector, UserRole, Advisory, AdvisoryStatus, AdvisorySou
 from schemas import AdvisoryOut
 
 # Routes
-from routes import auth, advisories, dashboard, admin, collaboration, ai, reports, apt_router, war_room, sandbox, advanced, darkweb, cve_lookup, media, ticker
+from routes import auth, advisories, dashboard, admin, collaboration, ai, reports, apt_router, war_room, sandbox, advanced, darkweb, cve_lookup, media, ticker, phishing
 from services import threat_feeds
 from services.media_scraper import fetch_media_sync
 from services.ticker_service import update_ticker_cache
@@ -271,6 +271,7 @@ app.include_router(darkweb.router, prefix="/api")
 app.include_router(cve_lookup.router, prefix="/api/cve")
 app.include_router(media.router, prefix="/api")
 app.include_router(ticker.router, prefix="/api")
+app.include_router(phishing.router, prefix="/api")
 
 
 @app.get("/api/health")

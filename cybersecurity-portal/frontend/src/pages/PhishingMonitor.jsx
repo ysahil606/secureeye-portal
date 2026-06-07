@@ -8,7 +8,9 @@ import {
 } from 'lucide-react'
 import clsx from 'clsx'
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+import { API_URL } from '../services/api'
+
+const API = API_URL.replace(/\/api$/, '')  // strip trailing /api — PhishingMonitor adds its own paths
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function getToken() {

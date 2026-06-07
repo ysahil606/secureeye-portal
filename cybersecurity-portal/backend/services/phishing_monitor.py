@@ -449,8 +449,9 @@ async def _stream_b_surbl(domain: str) -> list:
     loop = asyncio.get_event_loop()
     try:
         ip = await loop.run_in_executor(None, socket.gethostbyname, lookup)
-        # If it resolves to 127.0.0.x, it's listed
-        if ip.startswith("127."):
+        # SURBL returns 127.0.0.x if listed. E.g., 127.0.0.2 up to 127.0.0.128
+        # Make sure to ignore 127.255.x.x which are public/cloud DNS block error codes
+        if ip.startswith("127.0.0."):
             return [{
                 "id": f"surbl-{_hash(domain)}",
                 "domain": domain,
@@ -479,8 +480,10 @@ async def _stream_b_spamhaus_dbl(domain: str) -> list:
         ip = await loop.run_in_executor(None, socket.gethostbyname, lookup)
         # 127.0.1.2 = spam domain, 127.0.1.4 = phishing domain, 127.0.1.5 = malware
         codes = {"127.0.1.2": "spam", "127.0.1.4": "phishing", "127.0.1.5": "malware", "127.0.1.6": "botnet C&C"}
-        threat_type = codes.get(ip, "blacklisted")
-        if ip.startswith("127."):
+        
+        # Spamhaus returns 127.255.255.x if the DNS query is blocked (e.g., from Oracle Cloud IPs or public DNS)
+        if ip.startswith("127.0.1."):
+            threat_type = codes.get(ip, "blacklisted")
             return [{
                 "id": f"dbl-{_hash(domain)}",
                 "domain": domain,

@@ -49,6 +49,59 @@ def normalize_query(value: str) -> str:
     return cleaned.replace("https://", "").replace("http://", "").split("/")[0]
 
 
+SOURCE_LABELS = {
+    "emailrep": "EmailRep.io",
+    "hibp_domain": "Have I Been Pwned Breach Corpus",
+    "hibp_pass": "HIBP Pwned Passwords",
+    "urlscan": "URLScan.io",
+    "urlhaus": "URLhaus",
+    "threatfox": "ThreatFox",
+    "openphish": "OpenPhish",
+    "shodan": "Shodan InternetDB",
+    "intelx": "IntelX Phonebook",
+    "leakcheck": "LeakCheck.io",
+    "xposedornot": "XposedOrNot",
+    "crtsh": "crt.sh Certificate Transparency",
+    "hackertarget": "HackerTarget",
+    "threatminer": "ThreatMiner",
+    "wayback": "Internet Archive CDX",
+    "commoncrawl": "Common Crawl Index",
+    "bufferover": "BufferOver DNS",
+    "leaklookup": "Leak-Lookup",
+    "breachdir": "BreachDirectory",
+}
+
+
+def _safe_leak(item: dict) -> dict:
+    """Normalize leak records and make sure plaintext secrets are never returned."""
+    safe = dict(item)
+    for key in ("password", "plain_password", "raw_password", "hash", "sha1", "sha256"):
+        if key in safe:
+            safe.pop(key, None)
+    hint = str(safe.get("hint") or "")
+    if len(hint) > 180:
+        safe["hint"] = hint[:177] + "..."
+    safe.setdefault("status", "open")
+    safe.setdefault("has_password", False)
+    safe.setdefault("data_classes", [])
+    return safe
+
+
+def _dedupe_records(items: list[dict]) -> list[dict]:
+    seen = set()
+    out = []
+    for item in items:
+        key = (
+            item.get("id")
+            or f"{item.get('source','')}|{item.get('email','')}|{item.get('title','')}"
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SOURCE 1: HIBP All Breaches (100% Free — No API Key)
 # Cross-reference domain against the full HIBP breach database
@@ -68,15 +121,18 @@ async def _hibp_domain_breach_check(domain: str) -> list:
             )
             if r.status_code == 200:
                 breaches = r.json()
-                domain_lower = domain.lower().split(".")[0]  # Match on company name too
+                root_name = domain.lower().split(".")[0]
                 for breach in breaches:
                     breach_domain = (breach.get("Domain") or "").lower()
                     breach_name = (breach.get("Name") or "").lower()
                     breach_title = (breach.get("Title") or "").lower()
-                    if (domain_lower in breach_domain or
-                        domain in breach_domain or
-                        domain_lower in breach_name or
-                        domain_lower in breach_title):
+                    if (
+                        breach_domain == domain
+                        or breach_domain.endswith(f".{domain}")
+                        or (breach_domain == root_name and len(root_name) >= 4)
+                        or (breach_name == root_name and len(root_name) >= 5)
+                        or (breach_title == root_name and len(root_name) >= 5)
+                    ):
                         added = breach.get("AddedDate", "")[:10]
                         breach_date = breach.get("BreachDate", added) or added
                         count = breach.get("PwnCount", 0)
@@ -92,6 +148,7 @@ async def _hibp_domain_breach_check(domain: str) -> list:
                             "has_password": has_passwords,
                             "hint": f"Leaked: {', '.join(classes[:4])}" if classes else "Data breach confirmed",
                             "breach_size": count,
+                            "data_classes": classes,
                         })
     except Exception as e:
         logger.warning(f"HIBP domain breach check failed: {e}")
@@ -242,7 +299,7 @@ async def _check_leakcheck_public(keyword: str) -> list:
                     sources = data.get("sources", [])
                     fields = data.get("fields", [])
                     has_password = "password" in fields or "hash" in fields
-                    for source in sources:
+                    for source in sources[:25]:
                         breach_name = source.get("name", "Unknown Breach")
                         breach_date = (source.get("date") or "Unknown")[:10]
                         leaks.append({
@@ -524,6 +581,123 @@ async def _check_hackertarget(domain: str) -> list:
 # ─────────────────────────────────────────────────────────────────────────────
 # SOURCE 13: Optional paid sources (only if API keys configured)
 # ─────────────────────────────────────────────────────────────────────────────
+async def _check_threatminer(domain: str) -> list:
+    mentions = []
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            r = await client.get(
+                "https://api.threatminer.org/v2/domain.php",
+                params={"q": domain, "rt": 1},
+                headers=HEADERS,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("status_code") == "200":
+                    for item in (data.get("results") or [])[:6]:
+                        mentions.append({
+                            "id": f"tm-{sha256(str(item).encode()).hexdigest()[:8]}",
+                            "title": "ThreatMiner: Passive DNS exposure",
+                            "snippet": str(item)[:180],
+                            "onion_site": "threatminer.org",
+                            "severity": "medium",
+                            "url": f"https://www.threatminer.org/domain.php?q={domain}",
+                        })
+    except Exception as e:
+        logger.warning(f"ThreatMiner failed: {e}")
+    return mentions
+
+
+async def _check_wayback_exposure(domain: str) -> list:
+    mentions = []
+    risky_markers = ("password", "passwd", "secret", "token", "apikey", "api_key", ".env", "backup", "dump", "config")
+    try:
+        async with httpx.AsyncClient(timeout=12, follow_redirects=True) as client:
+            r = await client.get(
+                "https://web.archive.org/cdx",
+                params={
+                    "url": f"*.{domain}/*",
+                    "output": "json",
+                    "fl": "timestamp,original,statuscode,mimetype",
+                    "filter": "statuscode:200",
+                    "collapse": "urlkey",
+                    "limit": 40,
+                },
+                headers=HEADERS,
+            )
+            if r.status_code == 200:
+                rows = r.json()
+                for row in rows[1:] if isinstance(rows, list) else []:
+                    original = row[1] if len(row) > 1 else ""
+                    if any(marker in original.lower() for marker in risky_markers):
+                        mentions.append({
+                            "id": f"wb-{sha256(original.encode()).hexdigest()[:8]}",
+                            "title": "Wayback: historically exposed sensitive path",
+                            "snippet": original[:180],
+                            "onion_site": "web.archive.org",
+                            "severity": "high",
+                            "url": f"https://web.archive.org/web/*/{original}",
+                        })
+    except Exception as e:
+        logger.warning(f"Wayback exposure search failed: {e}")
+    return mentions
+
+
+async def _check_commoncrawl(domain: str) -> list:
+    mentions = []
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            coll = await client.get("https://index.commoncrawl.org/collinfo.json", headers=HEADERS)
+            if coll.status_code != 200:
+                return mentions
+            indexes = coll.json()
+            index_id = indexes[0].get("id") if indexes else None
+            if not index_id:
+                return mentions
+            r = await client.get(
+                f"https://index.commoncrawl.org/{index_id}-index",
+                params={"url": f"*.{domain}/*", "output": "json", "limit": 20},
+                headers=HEADERS,
+            )
+            if r.status_code == 200 and r.text.strip():
+                for line in r.text.splitlines():
+                    if any(marker in line.lower() for marker in ("password", "secret", "token", ".env", "backup", "dump")):
+                        mentions.append({
+                            "id": f"cc-{sha256(line.encode()).hexdigest()[:8]}",
+                            "title": "Common Crawl: sensitive keyword in indexed URL",
+                            "snippet": line[:220],
+                            "onion_site": "commoncrawl.org",
+                            "severity": "medium",
+                            "url": "https://index.commoncrawl.org/",
+                        })
+                        if len(mentions) >= 5:
+                            break
+    except Exception as e:
+        logger.warning(f"Common Crawl search failed: {e}")
+    return mentions
+
+
+async def _check_bufferover_dns(domain: str) -> list:
+    mentions = []
+    try:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+            r = await client.get(f"https://dns.bufferover.run/dns?q=.{domain}", headers=HEADERS)
+            if r.status_code == 200:
+                data = r.json()
+                records = (data.get("FDNS_A") or []) + (data.get("RDNS") or [])
+                if records:
+                    mentions.append({
+                        "id": f"bo-{sha256(domain.encode()).hexdigest()[:8]}",
+                        "title": "BufferOver: passive DNS records found",
+                        "snippet": f"{len(records)} DNS records linked to this domain. Review forgotten dev, VPN, staging, and exposed admin endpoints.",
+                        "onion_site": "dns.bufferover.run",
+                        "severity": "medium",
+                        "url": f"https://dns.bufferover.run/dns?q=.{domain}",
+                    })
+    except Exception as e:
+        logger.warning(f"BufferOver DNS failed: {e}")
+    return mentions
+
+
 async def _check_leaklookup(keyword: str) -> list:
     if not getattr(settings, "LEAK_LOOKUP_API_KEY", ""):
         return []
@@ -538,7 +712,7 @@ async def _check_leaklookup(keyword: str) -> list:
             if r.status_code == 200:
                 data = r.json()
                 if data.get("error") == "false" and data.get("message"):
-                    for breach_name in data["message"].keys():
+                    for breach_name in list(data["message"].keys())[:25]:
                         leaks.append({
                             "id": f"ll-{sha256(breach_name.encode()).hexdigest()[:8]}",
                             "email": keyword,
@@ -568,7 +742,7 @@ async def _check_breachdirectory(keyword: str) -> list:
                 }
             )
             if r.status_code == 200:
-                for item in r.json().get("result", []):
+                for item in r.json().get("result", [])[:50]:
                     leaks.append({
                         "id": f"bd-{sha256(str(item).encode()).hexdigest()[:8]}",
                         "email": item.get("email") or keyword,
@@ -577,7 +751,7 @@ async def _check_breachdirectory(keyword: str) -> list:
                         "severity": "critical" if item.get("password") else "high",
                         "status": "open",
                         "has_password": bool(item.get("password")),
-                        "hint": item.get("password") or "SHA-1 Hash Found",
+                        "hint": "Password or hash present in breach dataset" if item.get("password") else "SHA-1 hash indicator found",
                     })
     except Exception as e:
         logger.error(f"BreachDirectory API failed: {e}")
@@ -631,6 +805,10 @@ async def scan_darkweb(
         tasks.append(("leakcheck", _check_leakcheck_public(keyword)))
         tasks.append(("crtsh", _check_crt_sh(keyword)))
         tasks.append(("hackertarget", _check_hackertarget(keyword)))
+        tasks.append(("threatminer", _check_threatminer(keyword)))
+        tasks.append(("wayback", _check_wayback_exposure(keyword)))
+        tasks.append(("commoncrawl", _check_commoncrawl(keyword)))
+        tasks.append(("bufferover", _check_bufferover_dns(keyword)))
         tasks.append(("leaklookup", _check_leaklookup(keyword)))
         tasks.append(("breachdir", _check_breachdirectory(keyword)))
 
@@ -642,6 +820,16 @@ async def scan_darkweb(
     task_coros = [t[1] for t in tasks]
     results = await asyncio.gather(*task_coros, return_exceptions=True)
     result_map = {task_names[i]: results[i] for i in range(len(results))}
+    source_health = {
+        SOURCE_LABELS.get(name, name): {
+            "status": "error" if isinstance(result_map[name], Exception) else "checked",
+            "records": 0 if isinstance(result_map[name], Exception) or result_map[name] is None else (
+                len(result_map[name]) if isinstance(result_map[name], list) else 1
+            ),
+        }
+        for name in task_names
+    }
+    sources_checked = [SOURCE_LABELS.get(name, name) for name in task_names if not isinstance(result_map.get(name), Exception)]
 
     # ── Process EmailRep ─────────────────────────────────────────────────────
     if "emailrep" in result_map and result_map["emailrep"] and not isinstance(result_map["emailrep"], Exception):
@@ -722,6 +910,13 @@ async def scan_darkweb(
         if ht_mentions:
             sources_checked.append("HackerTarget")
             mentions.extend(ht_mentions)
+
+    for key in ("threatminer", "wayback", "commoncrawl", "bufferover"):
+        if key in result_map and not isinstance(result_map[key], Exception):
+            extra_mentions = result_map[key]
+            if extra_mentions:
+                sources_checked.append(SOURCE_LABELS.get(key, key))
+                mentions.extend(extra_mentions)
 
     # ── Process Shodan ───────────────────────────────────────────────────────
     if "shodan" in result_map and result_map["shodan"] and not isinstance(result_map["shodan"], Exception):
@@ -807,6 +1002,29 @@ async def scan_darkweb(
     if advisory_hits or ioc_hits:
         sources_checked.append("SecureEye Intelligence DB")
 
+    leaks = _dedupe_records([_safe_leak(item) for item in leaks])
+    mentions = _dedupe_records(mentions)
+    sources_checked = sorted(set(sources_checked))
+
+    exposed_identities = [
+        item.get("email")
+        for item in leaks
+        if item.get("email") and "accounts" not in str(item.get("email"))
+    ]
+    compromised_endpoints = [
+        item for item in mentions
+        if any(
+            word in (item.get("title", "") + " " + item.get("snippet", "")).lower()
+            for word in ("subdomain", "host", "dns", "shodan", "cve", "admin", "vpn", "staging")
+        )
+    ]
+    data_classes = sorted({
+        cls
+        for item in leaks
+        for cls in (item.get("data_classes") or [])
+        if cls
+    })
+
     # ── Determine overall exposure level ─────────────────────────────────────
     critical_count = sum(1 for l in leaks if l.get("severity") == "critical")
     if critical_count >= 2 or len(leaks) >= 5:
@@ -828,7 +1046,16 @@ async def scan_darkweb(
         "password_check": password_check,
         "shodan_intel": shodan_intel,
         "sources_checked": sources_checked,
+        "source_health": source_health,
         "premium_sources_skipped": premium_sources_skipped,
+        "exposure_summary": {
+            "exposed_identities": len(exposed_identities),
+            "password_exposure_count": sum(1 for item in leaks if item.get("has_password")),
+            "data_classes": data_classes,
+            "compromised_endpoint_signals": len(compromised_endpoints),
+            "credential_records_are_redacted": True,
+            "note": "SecureEye reports exposure evidence and password-present signals only. Plaintext stolen passwords are not retrieved or displayed.",
+        },
         "total_findings": len(leaks) + len(mentions),
         "api_active": True,
         "recommendations": [

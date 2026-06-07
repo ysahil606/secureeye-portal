@@ -25,8 +25,8 @@ SYS_PROMPT = (
     "(2) ALWAYS use EXACTLY the section headers provided — no additions, no omissions, no reordering. "
     "(3) Use ONLY plain dashes (-) for bullet points. "
     "(4) Output CLEAN PLAIN TEXT only — no bold, no italic, no headers with #. "
-    "(5) If data is unknown, provide your best expert assessment without labeling it as an estimate. "
-    "(6) Be authoritative, precise, terse, and technically accurate."
+    "(5) If data is unknown, say what is unknown and what evidence is needed. "
+    "(6) Be authoritative, precise, terse, and technically accurate. (7) Never invent CVEs, exploit status, vendors, statistics, or source URLs."
 )
 
 async def _try_gemini(prompt: str, api_key: str, model: str = "gemini-2.0-flash", max_tokens: int = 3000, sys_prompt: str = SYS_PROMPT, use_search: bool = False) -> str | None:
@@ -212,9 +212,9 @@ async def get_ai_summary(content: str) -> str:
     prompt = f"""Analyze the following security content and produce a COMPLETE, STRUCTURED intelligence report.
 
 CRITICAL RULES:
-- Provide rich, detailed, confident responses like ChatGPT or Claude — never say you cannot find information.
+- Use the supplied content as evidence. If a fact is not present or cannot be verified, explicitly mark it as unverified.
 - ALWAYS use rich Markdown formatting: **bold**, bullet points, `## Headers`, and tables.
-- ALWAYS end your response with a `## References` section containing 3-5 real, valid hyperlinks using Markdown format: `[Source Name](https://url)`. Include NVD, vendor advisories, threat intelligence blogs as appropriate.
+- ALWAYS end your response with a `## References` section. Include only real, relevant hyperlinks that are present in the content or stable official sources such as NVD, CISA, MITRE, vendor advisories, abuse.ch, Shodan, or URLScan. Do not fabricate article URLs.
 - Include the following sections in your report:
   - `## Executive Overview`
   - `## Technical Details & TTPs`
@@ -362,19 +362,26 @@ async def chat_with_assistant(message: str, history: list, db_context: str) -> s
     Tries Gemini with Google Search Grounding first for real-time answers.
     Falls back to all other providers if Gemini is unavailable.
     """
-    CHAT_SYS_PROMPT = f"""You are 'SecureEye Cyber Assistant', an elite AI threat intelligence analyst similar to ChatGPT or Claude. You have real-time access to Google Search.
+    search_enabled = bool(settings.GEMINI_API_KEY or settings.GEMINI_API_KEY_2)
+    search_claim = (
+        "When Google Search grounding is available, use it for current facts."
+        if search_enabled
+        else "Google Search grounding is not configured. Use only the provided local/OSINT context and your general model knowledge, and clearly label anything that requires live verification."
+    )
+
+    CHAT_SYS_PROMPT = f"""You are 'SecureEye Cyber Assistant', a precise cyber threat intelligence analyst.
 
 ## LOCAL DATABASE CONTEXT:
 {db_context}
 
 ## INSTRUCTIONS:
-1. You have access to real-time Google Search. USE IT. Always search for the latest information.
-2. Provide rich, detailed, confident responses like ChatGPT or Claude — never say you cannot find information.
+1. {search_claim}
+2. Be useful but do not overclaim. If evidence is missing, say what is missing and how to verify it.
 3. For threat actors, CVEs, or malware, always provide: ## Overview, ## Technical Details, ## Impact, and ## Mitigation.
 4. For general questions, answer naturally and conversationally.
 5. Always use rich Markdown: **bold**, bullet points, `## Headers`, and tables.
 6. Be highly technical, accurate, and authoritative.
-7. ALWAYS end your response with a `## References` section containing 3-5 real, valid hyperlinks using Markdown format: `[Source Name](https://url)`. Include NVD, vendor advisories, threat intelligence blogs (e.g., BleepingComputer, Mandiant, CrowdStrike, MITRE ATT&CK) as appropriate.
+7. ALWAYS end with `## References`. Prefer URLs from the provided context. If you add references from memory, use stable official pages only, such as NVD CVE detail, CISA KEV, MITRE ATT&CK, vendor advisories, Shodan CVEDB, abuse.ch, or URLScan. Never invent news article URLs.
 """
 
     conversation = ""
@@ -382,8 +389,7 @@ async def chat_with_assistant(message: str, history: list, db_context: str) -> s
         role = "User" if msg["role"] == "user" else "Assistant"
         conversation += f"\n{role}: {msg['content']}"
 
-    # Build a clean conversational prompt (no db_context injected — Gemini Search handles it)
-    simple_prompt = f"""Previous conversation:{conversation}\n\nUser's latest question: {message}\n\nProvide a comprehensive, well-structured response:"""
+    simple_prompt = f"""Evidence context:\n{db_context}\n\nPrevious conversation:{conversation}\n\nUser's latest question: {message}\n\nProvide a comprehensive, well-structured response grounded in the evidence above. If the evidence is incomplete, state the uncertainty."""
 
     # ── Priority 1: Gemini with Google Search Grounding (REAL-TIME WEB ACCESS) ──
     result = await _try_gemini(simple_prompt, settings.GEMINI_API_KEY, settings.GEMINI_MODEL_1, 2000, CHAT_SYS_PROMPT, use_search=True)

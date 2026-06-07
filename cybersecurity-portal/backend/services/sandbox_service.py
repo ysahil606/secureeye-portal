@@ -7,6 +7,7 @@ Sources:
   4. Local Static Analysis — Heuristic file scanning (no API)
   5. URL Intelligence     — DNS, SSL, phishing heuristics + AI
 """
+import asyncio
 import logging
 import httpx
 import hashlib
@@ -23,6 +24,7 @@ except ImportError:
 logger = logging.getLogger("sandbox")
 
 HYBRID_ANALYSIS_API = "https://www.hybrid-analysis.com/api/v2"
+HEADERS = {"User-Agent": "SecureEye-DeepScan/2.0 (security-research)"}
 
 
 def calculate_sha256(file_content: bytes) -> str:
@@ -186,6 +188,62 @@ async def _lookup_pulsedive(file_hash: str) -> dict | None:
         logger.error(f"Pulsedive lookup failed: {e}")
     return None
 
+
+def _score_from_sources(source_results: list[dict], local_report: dict | None = None) -> tuple[int, str, list[str]]:
+    score = 0
+    factors = []
+
+    for item in source_results:
+        if not item or not item.get("found"):
+            continue
+        verdict = (item.get("verdict") or "").lower()
+        source = item.get("source", "Threat source")
+        if verdict == "malicious":
+            score += 55
+            factors.append(f"{source} confirmed malicious reputation")
+        elif verdict == "suspicious":
+            score += 30
+            factors.append(f"{source} reported suspicious reputation")
+        elif item.get("threat_score"):
+            score += min(int(item.get("threat_score") or 0), 35)
+
+        if item.get("malicious_count", 0) >= 5:
+            score += 20
+            factors.append(f"{source} has {item.get('malicious_count')} malicious detections")
+        if item.get("vx_family"):
+            factors.append(f"Malware family/signature: {item.get('vx_family')}")
+
+    if local_report:
+        suspicious = local_report.get("suspicious_features") or []
+        if suspicious:
+            score += min(len(suspicious) * 10, 35)
+            factors.extend(suspicious[:5])
+
+    score = max(0, min(score, 100))
+    verdict = "Clean"
+    if score >= 70:
+        verdict = "Malicious"
+    elif score >= 35:
+        verdict = "Suspicious"
+    elif score >= 15:
+        verdict = "Review Required"
+    return score, verdict, factors
+
+
+def _build_static_summary(target: str, verdict: str, score: int, factors: list[str], sources: list[str]) -> str:
+    if verdict == "Malicious":
+        lead = f"{target} has confirmed malicious intelligence and should be blocked or isolated immediately."
+    elif verdict == "Suspicious":
+        lead = f"{target} shows suspicious signals and should be treated as untrusted until manually reviewed."
+    elif verdict == "Review Required":
+        lead = f"{target} has weak risk signals that require analyst validation before allowlisting."
+    else:
+        lead = f"{target} has no strong malicious signal in the checked free intelligence sources."
+
+    factor_text = "; ".join(factors[:4]) if factors else "No high-confidence malicious indicators were returned."
+    source_text = ", ".join(sources) if sources else "local static analysis"
+    return f"{lead} Risk score: {score}/100. Key evidence: {factor_text}. Sources checked: {source_text}."
+
 async def get_sandbox_report(file_hash: str, file_content: bytes = None, filename: str = "", mode: str = "basic") -> dict:
     """
     Multi-source hash reputation lookup with tiered failover.
@@ -195,13 +253,24 @@ async def get_sandbox_report(file_hash: str, file_content: bytes = None, filenam
     if not file_hash or len(file_hash) < 32:
         return {"error": "Invalid file hash format. Provide MD5 (32), SHA-1 (40), or SHA-256 (64)."}
 
-    # Try each source in order, return first hit
-    for lookup_fn in [_lookup_virustotal, _lookup_malwarebazaar, _lookup_hybrid_analysis, _lookup_pulsedive]:
-        result = await lookup_fn(file_hash)
-        if result is not None:
-            if result.get("found"):
-                return result
-            # Continue to next source if not found
+    lookups = [_lookup_virustotal, _lookup_malwarebazaar, _lookup_hybrid_analysis, _lookup_pulsedive]
+    results = await asyncio.gather(*(fn(file_hash) for fn in lookups), return_exceptions=True)
+    source_results = [r for r in results if isinstance(r, dict)]
+    sources_checked = [r.get("source") for r in source_results if r.get("source")]
+    positive = [r for r in source_results if r.get("found")]
+
+    if positive:
+        score, verdict, factors = _score_from_sources(positive)
+        primary = max(positive, key=lambda item: int(item.get("threat_score") or 0))
+        return {
+            **primary,
+            "verdict": verdict,
+            "threat_score": score,
+            "source_results": source_results,
+            "sources_checked": sources_checked,
+            "risk_factors": factors,
+            "summary": _build_static_summary(file_hash, verdict, score, factors, sources_checked),
+        }
 
     # If all sources checked but none found, and mode is advanced, upload to Hybrid Analysis
     api_key = getattr(settings, "HYBRID_ANALYSIS_API_KEY", "")
@@ -229,7 +298,11 @@ async def get_sandbox_report(file_hash: str, file_content: bytes = None, filenam
         "found": False,
         "message": "No existing report found in Threat DBs, and upload was skipped or failed.",
         "hash": file_hash,
-        "sources_checked": ["VirusTotal", "MalwareBazaar", "Hybrid Analysis", "Pulsedive"]
+        "source_results": source_results,
+        "sources_checked": sources_checked or ["VirusTotal", "MalwareBazaar", "Hybrid Analysis", "Pulsedive"],
+        "verdict": "Clean",
+        "threat_score": 0,
+        "summary": _build_static_summary(file_hash, "Clean", 0, [], sources_checked),
     }
 
 
@@ -262,6 +335,10 @@ async def analyze_url(url: str, mode: str = "basic") -> dict:
         "verdict": "Clear",
         "details": "",
         "urlhaus": None,
+        "source_results": [],
+        "sources_checked": [],
+        "risk_factors": [],
+        "network_exposure": {},
     }
 
     # 1. Resolve IP
@@ -327,6 +404,135 @@ async def analyze_url(url: str, mode: str = "basic") -> dict:
     except Exception as e:
         logger.warning(f"URLhaus URL check failed: {e}")
 
+    async def check_urlhaus_host():
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.post("https://urlhaus-api.abuse.ch/v1/host/", data={"host": domain}, headers=HEADERS)
+                if r.status_code == 200 and r.json().get("query_status") == "ok":
+                    data = r.json()
+                    return {
+                        "found": True,
+                        "source": "URLhaus Host",
+                        "verdict": "malicious",
+                        "threat_score": 85,
+                        "detections": f"{len(data.get('urls') or [])} malicious URLs on host",
+                        "report_url": f"https://urlhaus.abuse.ch/browse.php?search={domain}",
+                    }
+        except Exception as e:
+            logger.warning(f"URLhaus host failed: {e}")
+        return {"found": False, "source": "URLhaus Host"}
+
+    async def check_threatfox():
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.post(
+                    "https://threatfox-api.abuse.ch/api/v1/",
+                    json={"query": "search_ioc", "search_term": domain},
+                    headers=HEADERS,
+                )
+                if r.status_code == 200 and r.json().get("query_status") == "ok":
+                    return {
+                        "found": True,
+                        "source": "ThreatFox",
+                        "verdict": "malicious",
+                        "threat_score": 80,
+                        "detections": f"{len(r.json().get('data') or [])} IOC matches",
+                        "report_url": "https://threatfox.abuse.ch/",
+                    }
+        except Exception as e:
+            logger.warning(f"ThreatFox URL/domain failed: {e}")
+        return {"found": False, "source": "ThreatFox"}
+
+    async def check_openphish():
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                r = await client.get("https://openphish.com/feed.txt", headers=HEADERS)
+                if r.status_code == 200:
+                    matches = [line for line in r.text.splitlines() if domain in line][:5]
+                    if matches:
+                        return {
+                            "found": True,
+                            "source": "OpenPhish",
+                            "verdict": "malicious",
+                            "threat_score": 85,
+                            "detections": f"{len(matches)} active phishing feed matches",
+                            "matches": matches,
+                            "report_url": "https://openphish.com/",
+                        }
+        except Exception as e:
+            logger.warning(f"OpenPhish failed: {e}")
+        return {"found": False, "source": "OpenPhish"}
+
+    async def check_urlscan():
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(
+                    "https://urlscan.io/api/v1/search/",
+                    params={"q": f"domain:{domain}", "size": 5},
+                    headers=HEADERS,
+                )
+                if r.status_code == 200:
+                    results = r.json().get("results") or []
+                    malicious = [
+                        item for item in results
+                        if item.get("verdicts", {}).get("overall", {}).get("malicious")
+                    ]
+                    if malicious:
+                        return {
+                            "found": True,
+                            "source": "URLScan.io",
+                            "verdict": "malicious",
+                            "threat_score": 80,
+                            "detections": f"{len(malicious)} malicious URLScan verdicts",
+                            "report_url": malicious[0].get("result"),
+                        }
+                    return {"found": bool(results), "source": "URLScan.io", "verdict": "clean", "threat_score": 0, "detections": f"{len(results)} public scans"}
+        except Exception as e:
+            logger.warning(f"URLScan failed: {e}")
+        return {"found": False, "source": "URLScan.io"}
+
+    async def check_shodan():
+        if not analysis.get("ip") or analysis["ip"] == "Unresolved":
+            return {"found": False, "source": "Shodan InternetDB"}
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                r = await client.get(f"https://internetdb.shodan.io/{analysis['ip']}", headers=HEADERS)
+                if r.status_code == 200:
+                    data = r.json()
+                    vulns = data.get("vulns") or []
+                    ports = data.get("ports") or []
+                    analysis["network_exposure"] = {"ports": ports, "vulns": vulns, "cpes": data.get("cpes") or []}
+                    return {
+                        "found": True,
+                        "source": "Shodan InternetDB",
+                        "verdict": "suspicious" if vulns else "clean",
+                        "threat_score": 70 if vulns else 10 if ports else 0,
+                        "detections": f"{len(ports)} open ports, {len(vulns)} CVEs",
+                        "vulns": vulns,
+                        "ports": ports,
+                        "report_url": f"https://www.shodan.io/host/{analysis['ip']}",
+                    }
+        except Exception as e:
+            logger.warning(f"Shodan InternetDB failed: {e}")
+        return {"found": False, "source": "Shodan InternetDB"}
+
+    extra_results = await asyncio.gather(
+        check_urlhaus_host(),
+        check_threatfox(),
+        check_openphish(),
+        check_urlscan(),
+        check_shodan(),
+        return_exceptions=True,
+    )
+    for item in extra_results:
+        if isinstance(item, dict):
+            analysis["source_results"].append(item)
+            if item.get("source"):
+                analysis["sources_checked"].append(item["source"])
+            if item.get("found") and item.get("verdict") in {"malicious", "suspicious"}:
+                analysis["phishing_score"] += min(int(item.get("threat_score") or 0), 50)
+                analysis["suspicious_patterns"].append(f"{item.get('source')}: {item.get('detections', 'risk signal')}")
+
     # 5. VirusTotal URL Lookup (Deep Analysis Mode)
     if mode == "advanced" and getattr(settings, "VIRUSTOTAL_API_KEY", ""):
         try:
@@ -345,13 +551,28 @@ async def analyze_url(url: str, mode: str = "basic") -> dict:
             logger.error(f"VirusTotal URL lookup failed: {e}")
 
     # 5. Final Verdict & AI Explanation
-    if analysis["phishing_score"] > 40:
-        analysis["verdict"] = "Malicious"
-    elif analysis["phishing_score"] > 20:
-        analysis["verdict"] = "Suspicious"
+    analysis["phishing_score"] = min(analysis["phishing_score"], 100)
+    score, aggregate_verdict, factors = _score_from_sources(
+        [item for item in analysis["source_results"] if item.get("found")],
+        {"suspicious_features": analysis["suspicious_patterns"]},
+    )
+    analysis["risk_factors"] = factors or analysis["suspicious_patterns"]
 
-    ai_prompt = f"Analyze this URL and its metadata: {analysis}. Provide a 2-sentence expert cybersecurity warning."
-    analysis["ai_report"] = await summarize_threat_report(ai_prompt)
+    if max(analysis["phishing_score"], score) > 60:
+        analysis["verdict"] = "Malicious"
+    elif max(analysis["phishing_score"], score) > 25:
+        analysis["verdict"] = "Suspicious"
+    elif aggregate_verdict == "Review Required":
+        analysis["verdict"] = "Review Required"
+
+    analysis["summary"] = _build_static_summary(domain, analysis["verdict"], max(analysis["phishing_score"], score), analysis["risk_factors"], analysis["sources_checked"])
+    ai_prompt = (
+        "Using only the following URL scan evidence, write a concise analyst verdict. "
+        "If evidence is weak, say so. Do not invent detections or references.\n"
+        f"{analysis}"
+    )
+    ai_report = await summarize_threat_report(ai_prompt)
+    analysis["ai_report"] = ai_report if not ai_report.startswith("Automated analysis completed") else analysis["summary"]
 
     return analysis
 
@@ -378,11 +599,16 @@ async def local_static_analysis(file_content: bytes, filename: str) -> dict:
         suspicious.append("Very large file (possible padding/evasion)")
 
     # Check for suspicious strings
-    suspicious_strings = [b"powershell", b"cmd.exe", b"WScript", b"eval(", b"base64", b"CreateObject"]
+    suspicious_strings = [
+        b"powershell", b"cmd.exe", b"WScript", b"eval(", b"base64", b"CreateObject",
+        b"VirtualAlloc", b"WriteProcessMemory", b"CreateRemoteThread", b"rundll32",
+        b"regsvr32", b"Invoke-WebRequest", b"curl ", b"wget ", b"FromBase64String",
+    ]
     for s in suspicious_strings:
         if s.lower() in file_content.lower():
             suspicious.append(f"Contains suspicious string: {s.decode()}")
 
+    score, verdict, factors = _score_from_sources([], {"suspicious_features": suspicious})
     return {
         "filename": filename,
         "sha256": sha256,
@@ -390,5 +616,7 @@ async def local_static_analysis(file_content: bytes, filename: str) -> dict:
         "size_kb": round(size_kb, 2),
         "strings_sample": decoded_strings,
         "suspicious_features": suspicious,
-        "verdict": "Review Required" if suspicious else "Clean (Local Only)"
+        "threat_score": score,
+        "risk_factors": factors,
+        "verdict": verdict if suspicious else "Clean (Local Only)"
     }

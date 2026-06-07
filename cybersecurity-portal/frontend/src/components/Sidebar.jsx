@@ -4,7 +4,7 @@ import {
   Shield, LayoutDashboard, FileText, Search,
   Bell, Users, Layers, Cpu, Clock, Bug,
   Network, LogOut, ChevronRight, Sparkles, X, Ghost, LifeBuoy, BrainCircuit, Settings as SettingsIcon, Tv, Globe,
-  ChevronDown, Flame
+  ChevronDown, Flame, Fish
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
@@ -24,6 +24,7 @@ const NAVIGATION_GROUPS = [
       { to: '/search', icon: Search, label: 'Smart Search', feature: 'search' },
       { to: '/timeline', icon: Clock, label: 'Threat Timeline', feature: 'timeline' },
       { to: '/zero-days', icon: Bug, label: 'Zero-Day Tracker', feature: 'zero-days' },
+      { to: '/phishing', icon: Fish, label: 'Phishing Monitor', feature: 'advisories' },
     ]
   },
   {

@@ -61,8 +61,11 @@ class Settings(BaseSettings):
 
     CEREBRAS_API_KEY: str = ""         # Free: cloud.cerebras.ai (1,000 req/day)
     OPENROUTER_API_KEY: str = ""       # Free models: openrouter.ai
-    HUGGINGFACE_API_KEY: str = ""
-    VIRUSTOTAL_API_KEY: str = ""
+    SHODAN_API_KEY: Optional[str] = None
+    VIRUSTOTAL_API_KEY: Optional[str] = None
+    ALIENVAULT_OTX_API_KEY: Optional[str] = None
+    PULSEDIVE_API_KEY: Optional[str] = None
+    GOOGLE_SAFE_BROWSING_API_KEY: Optional[str] = None
 
     # Web Search
     WEB_SEARCH_PROVIDER: str = "brave"

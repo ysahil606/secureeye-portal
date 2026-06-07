@@ -30,6 +30,7 @@ import Settings from './pages/Settings'
 import RolePermissions from './pages/RolePermissions'
 import MediaHub from './pages/MediaHub'
 import CyberWeather from './pages/CyberWeather'
+import PhishingMonitor from './pages/PhishingMonitor'
 
 function PrivateRoute({ children, adminOnly, analystOnly, feature }) {
   const { user, loading, hasFeatureAccess } = useAuth()
@@ -74,6 +75,7 @@ function AppRoutes() {
         <Route path="/security" element={<PrivateRoute feature="security"><SecuritySettings /></PrivateRoute>} />
         <Route path="/media" element={<PrivateRoute feature="media"><MediaHub /></PrivateRoute>} />
         <Route path="/cyber-weather" element={<PrivateRoute feature="dashboard"><CyberWeather /></PrivateRoute>} />
+        <Route path="/phishing" element={<PrivateRoute feature="advisories"><PhishingMonitor /></PrivateRoute>} />
         <Route path="/settings" element={<PrivateRoute feature="settings"><Settings /></PrivateRoute>} />
       </Route>
 

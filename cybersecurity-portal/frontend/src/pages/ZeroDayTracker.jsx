@@ -156,13 +156,20 @@ function CveDossierModal({ cveId, data, onClose, onGenerateAI }) {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // Extract useful fields from varied API responses
+  // CISA KEV specific fields (present when data comes from the feed directly)
+  const kevVendor      = data?.vendorProject    || data?.vendor    || null
+  const kevProduct     = data?.product                              || null
+  const kevShortDesc   = data?.shortDescription                     || null
+  const kevAction      = data?.requiredAction                       || null
+  const kevDueDate     = data?.dueDate                              || null
+
+  // General description (MITRE / NVD / KEV fallback)
   const summary = stripHtml(
     data?.containers?.cna?.descriptions?.[0]?.value
     || data?.cveMetadata?.description
     || data?.vulnerabilities?.[0]?.cve?.descriptions?.[0]?.value
     || data?.summary
-    || data?.shortDescription
+    || kevShortDesc
     || '—'
   )
 
@@ -255,28 +262,51 @@ function CveDossierModal({ cveId, data, onClose, onGenerateAI }) {
 
           {/* Overview */}
           {tab === 'overview' && (
-            <div className="space-y-5">
-              <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-                <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Description</div>
-                <p className="text-sm text-slate-300 leading-7">{summary}</p>
-              </div>
+            <div className="space-y-4">
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {/* ── Top info grid ───────────────────────────────────────────── */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+
+                {kevVendor && (
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Vendor</div>
+                    <div className="text-sm font-bold text-blue-300">{kevVendor}</div>
+                  </div>
+                )}
+
+                {kevProduct && (
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Product</div>
+                    <div className="text-sm font-bold text-white">{kevProduct}</div>
+                  </div>
+                )}
+
+                {kevDueDate && (
+                  <div className="rounded-xl border border-red-900/30 bg-red-950/20 p-4">
+                    <div className="text-[10px] text-red-400 font-bold uppercase tracking-widest mb-1">Patch Due Date</div>
+                    <div className="text-sm font-bold text-red-300">{kevDueDate}</div>
+                  </div>
+                )}
+
                 {cvss && (
                   <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-                    <div className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-1">CVSS Score</div>
+                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">CVSS Score</div>
                     <div className={clsx('text-2xl font-black', cvssColor(cvss))}>{cvss}</div>
                   </div>
                 )}
+
                 {published && (
                   <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-                    <div className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-1">Published</div>
-                    <div className="text-sm font-bold text-white">{new Date(published).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Published</div>
+                    <div className="text-sm font-bold text-white">
+                      {new Date(published).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </div>
                   </div>
                 )}
+
                 <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-                  <div className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-1">Source</div>
-                  <div className="flex gap-2 flex-wrap mt-1">
+                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2">Sources</div>
+                  <div className="flex flex-col gap-1.5">
                     <a href={`https://nvd.nist.gov/vuln/detail/${cveId}`} target="_blank" rel="noreferrer"
                       className="flex items-center gap-1 text-xs text-cyan-400 hover:text-white transition">
                       NVD <ExternalLink className="h-3 w-3" />
@@ -292,10 +322,29 @@ function CveDossierModal({ cveId, data, onClose, onGenerateAI }) {
                   </div>
                 </div>
               </div>
+
+              {/* ── Description ─────────────────────────────────────────────── */}
+              <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Description</div>
+                <p className="text-sm text-slate-300 leading-7">{summary}</p>
+              </div>
+
+              {/* ── Required Action (CISA KEV) ──────────────────────────────── */}
+              {kevAction && (
+                <div className="rounded-xl border border-amber-800/40 bg-amber-950/20 p-5">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-amber-400 mb-2 flex items-center gap-2">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    Required Action
+                  </div>
+                  <p className="text-sm text-amber-100 leading-7">{kevAction}</p>
+                </div>
+              )}
+
             </div>
           )}
 
           {/* References */}
+
           {tab === 'references' && (
             <div className="space-y-2">
               {references.length === 0 && (

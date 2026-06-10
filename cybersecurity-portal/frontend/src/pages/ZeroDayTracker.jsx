@@ -16,6 +16,20 @@ import api from '../services/api'
 import SeverityBadge from '../components/SeverityBadge'
 import { cvssColor, formatDateTime, timeAgo, formatAIReport } from '../utils/helpers'
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Strip HTML tags + decode HTML entities (handles RSS / CISA KEV descriptions)
+const stripHtml = (str = '') =>
+  str
+    .replace(/<[^>]+>/g, ' ')          // remove tags
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s{2,}/g, ' ')           // collapse whitespace
+    .trim()
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_CFG = {
   'Exploited in the Wild': {
@@ -143,12 +157,14 @@ function CveDossierModal({ cveId, data, onClose, onGenerateAI }) {
   }
 
   // Extract useful fields from varied API responses
-  const summary = data?.containers?.cna?.descriptions?.[0]?.value
+  const summary = stripHtml(
+    data?.containers?.cna?.descriptions?.[0]?.value
     || data?.cveMetadata?.description
     || data?.vulnerabilities?.[0]?.cve?.descriptions?.[0]?.value
     || data?.summary
     || data?.shortDescription
     || '—'
+  )
 
   const cvss = data?.containers?.cna?.metrics?.[0]?.cvssV3_1?.baseScore
     || data?.containers?.cna?.metrics?.[0]?.cvssV3_0?.baseScore
@@ -429,7 +445,7 @@ function ZeroDayCard({ vuln, onAnalyze, index }) {
         </h3>
 
         {/* Description */}
-        <p className="text-xs text-slate-500 leading-5 line-clamp-2 mb-3">{vuln.shortDescription}</p>
+        <p className="text-xs text-slate-500 leading-5 line-clamp-2 mb-3">{stripHtml(vuln.shortDescription || '')}</p>
 
         {/* Footer */}
         <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-800/60">

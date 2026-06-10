@@ -156,22 +156,53 @@ function CveDossierModal({ cveId, data, onClose, onGenerateAI }) {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // CISA KEV specific fields (present when data comes from the feed directly)
-  const kevVendor      = data?.vendorProject    || data?.vendor    || null
-  const kevProduct     = data?.product                              || null
-  const kevShortDesc   = data?.shortDescription                     || null
-  const kevAction      = data?.requiredAction                       || null
-  const kevDueDate     = data?.dueDate                              || null
+  // ── Helper: parse "**Vendor:** X **Product:** Y ..." inline KEV format ──────
+  // MITRE/NVD sometimes embeds the CISA KEV structured text inside the description field.
+  const parseKevInlineFields = (raw = '') => {
+    const result = {}
+    const patterns = {
+      vendor:      /\*\*Vendor:\*\*\s*([^*]+?)(?=\s*\*\*|$)/i,
+      product:     /\*\*Product:\*\*\s*([^*]+?)(?=\s*\*\*|$)/i,
+      shortDesc:   /\*\*Short Description:\*\*\s*([^*]+?)(?=\s*\*\*|$)/i,
+      action:      /\*\*Required Action:\*\*\s*([^*]+?)(?=\s*\*\*|$)/i,
+      dueDate:     /\*\*Due Date:\*\*\s*([^*]+?)(?=\s*\*\*|$)/i,
+    }
+    for (const [key, re] of Object.entries(patterns)) {
+      const m = raw.match(re)
+      if (m) result[key] = m[1].trim()
+    }
+    return result
+  }
 
-  // General description (MITRE / NVD / KEV fallback)
+  // Raw description text from MITRE / NVD / KEV
+  const rawDesc =
+    data?.containers?.cna?.descriptions?.[0]?.value ||
+    data?.cveMetadata?.description ||
+    data?.vulnerabilities?.[0]?.cve?.descriptions?.[0]?.value ||
+    data?.summary ||
+    data?.shortDescription ||
+    ''
+
+  // If the raw description contains embedded KEV fields, extract them
+  const inlineParsed = rawDesc.includes('**Vendor:**') ? parseKevInlineFields(rawDesc) : {}
+
+  // CISA KEV fields (from the feed object OR inline-parsed from description)
+  const kevVendor    = data?.vendorProject || data?.vendor    || inlineParsed.vendor   || null
+  const kevProduct   = data?.product                         || inlineParsed.product   || null
+  const kevAction    = data?.requiredAction                  || inlineParsed.action    || null
+  const kevDueDate   = data?.dueDate                         || inlineParsed.dueDate   || null
+
+  // Clean description: use parsed shortDesc if available, else strip the whole block
   const summary = stripHtml(
-    data?.containers?.cna?.descriptions?.[0]?.value
-    || data?.cveMetadata?.description
-    || data?.vulnerabilities?.[0]?.cve?.descriptions?.[0]?.value
-    || data?.summary
-    || kevShortDesc
-    || '—'
-  )
+    inlineParsed.shortDesc ||    // parsed "Short Description:" value from inline KEV
+    data?.containers?.cna?.descriptions?.[0]?.value ||
+    data?.cveMetadata?.description ||
+    data?.vulnerabilities?.[0]?.cve?.descriptions?.[0]?.value ||
+    data?.summary ||
+    data?.shortDescription ||
+    '—'
+  ).replace(/\*\*[^*]+:\*\*\s*/g, '')  // strip any remaining **Label:** markers
+
 
   const cvss = data?.containers?.cna?.metrics?.[0]?.cvssV3_1?.baseScore
     || data?.containers?.cna?.metrics?.[0]?.cvssV3_0?.baseScore

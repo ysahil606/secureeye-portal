@@ -101,44 +101,73 @@ export function formatAIReport(text) {
   if (!text) return ''
   
   let html = text
-  
-  // Strip out [ANALYST ESTIMATE] strings entirely
+
+  // Strip [ANALYST ESTIMATE] strings
   html = html.replace(/\[ANALYST ESTIMATE\]\s*-?\s*/gi, '')
 
-  // Escape HTML tags to prevent breaking
-  html = html.replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  // Escape raw HTML to prevent injection
+  html = html.replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-  // Replace `- ` bullet points with a styled dot `•`
-  html = html.replace(/^-\s+/gm, '<span class="text-cyan-500 mr-2 text-[16px] font-black leading-none">•</span>')
+  // ── Markdown ## / ### Section Headers ─────────────────────────────────────
+  // e.g. "## Executive Overview" or "### Technical Details"
+  html = html.replace(
+    /^###\s+(.+)$/gm,
+    '<h5 class="text-indigo-300 font-black text-xs mt-6 mb-2 tracking-[0.15em] uppercase">$1</h5>'
+  )
+  html = html.replace(
+    /^##\s+(.+)$/gm,
+    '<h4 class="text-cyan-400 font-black text-sm mt-8 mb-3 tracking-[0.2em] uppercase border-b border-blue-900/40 pb-2">$1</h4>'
+  )
+  html = html.replace(
+    /^#\s+(.+)$/gm,
+    '<h3 class="text-white font-black text-base mt-8 mb-3 tracking-wide">$1</h3>'
+  )
 
-  // Replace divider lines
-  html = html.replace(/={10,}/g, '<hr class="my-6 border-blue-900/40" />')
-  
-  // Replace [KEY: VALUE] tags
-  html = html.replace(/\[([^\]:]+):\s*([^\]]+)\]/g, '<span class="inline-block bg-blue-950/50 border border-blue-900/50 text-blue-300 px-2 py-1 rounded text-[11px] uppercase tracking-widest mr-2 mb-2 font-bold">$1: <span class="text-white">$2</span></span>')
-
-  // Format known section headers
-  const headers = [
-    'EXECUTIVE OVERVIEW',
-    'THREAT ACTOR PROFILE',
-    'MITRE ATT&CK MAPPING',
-    'TECHNICAL ANALYSIS',
-    'INDICATORS OF COMPROMISE',
-    'IMPACT ASSESSMENT',
-    'REMEDIATION DIRECTIVES',
-    'ANALYST VERDICT',
-    'INTELLIGENCE REFERENCES',
-    'SECURE THREAT INTELLIGENCE BRIEF'
+  // ── Legacy ALL-CAPS section headers (keep for backwards compat) ────────────
+  const legacyHeaders = [
+    'EXECUTIVE OVERVIEW', 'THREAT ACTOR PROFILE', 'MITRE ATT&amp;CK MAPPING',
+    'TECHNICAL ANALYSIS', 'INDICATORS OF COMPROMISE', 'IMPACT ASSESSMENT',
+    'REMEDIATION DIRECTIVES', 'ANALYST VERDICT', 'INTELLIGENCE REFERENCES',
+    'SECURE THREAT INTELLIGENCE BRIEF', 'TECHNICAL DETAILS &amp; TTPS',
+    'TECHNICAL DETAILS', 'MITIGATION &amp; REMEDIATION', 'MITIGATION'
   ]
-  
-  headers.forEach(header => {
+  legacyHeaders.forEach(header => {
     const regex = new RegExp(`^${header}$`, 'gm')
-    html = html.replace(regex, `<h4 class="text-cyan-400 font-black text-sm mt-8 mb-4 tracking-[0.2em] uppercase border-b border-blue-900/40 pb-2">${header}</h4>`)
+    html = html.replace(regex, `<h4 class="text-cyan-400 font-black text-sm mt-8 mb-3 tracking-[0.2em] uppercase border-b border-blue-900/40 pb-2">${header}</h4>`)
   })
 
-  // Format URLs
-  const urlRegex = /(https?:\/\/[^\s]+)/g
-  html = html.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">$1</a>')
+  // ── Bold **text** ──────────────────────────────────────────────────────────
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-100 font-bold">$1</strong>')
+
+  // ── Bullet points: lines starting with "• ", "* ", or "- " ───────────────
+  html = html.replace(
+    /^[•\*\-]\s+(.+)$/gm,
+    '<div class="flex gap-2 my-1"><span class="text-cyan-500 text-base font-black leading-5 shrink-0">•</span><span class="text-slate-300 text-sm leading-6">$1</span></div>'
+  )
+
+  // ── Divider lines ─────────────────────────────────────────────────────────
+  html = html.replace(/={10,}/g, '<hr class="my-6 border-blue-900/40" />')
+
+  // ── [KEY: VALUE] tags ─────────────────────────────────────────────────────
+  html = html.replace(
+    /\[([^\]:]+):\s*([^\]]+)\]/g,
+    '<span class="inline-block bg-blue-950/50 border border-blue-900/50 text-blue-300 px-2 py-1 rounded text-[11px] uppercase tracking-widest mr-2 mb-2 font-bold">$1: <span class="text-white">$2</span></span>'
+  )
+
+  // ── URLs ──────────────────────────────────────────────────────────────────
+  html = html.replace(
+    /(https?:\/\/[^\s&]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 break-all">$1</a>'
+  )
+
+  // ── Paragraph breaks (double newlines → spacing) ──────────────────────────
+  html = html.replace(/\n\n+/g, '</p><p class="text-sm text-slate-300 leading-7 mt-3">')
+  // Single newlines inside paragraphs
+  html = html.replace(/\n/g, '<br />')
+
+  // Wrap the whole thing in a paragraph
+  html = `<p class="text-sm text-slate-300 leading-7">${html}</p>`
 
   return html
 }
+

@@ -99,75 +99,84 @@ export function formatMarkdown(text) {
 
 export function formatAIReport(text) {
   if (!text) return ''
-  
-  let html = text
 
-  // Strip [ANALYST ESTIMATE] strings
-  html = html.replace(/\[ANALYST ESTIMATE\]\s*-?\s*/gi, '')
+  let raw = text
 
-  // Escape raw HTML to prevent injection
-  html = html.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  // 1. Strip noise
+  raw = raw.replace(/\[ANALYST ESTIMATE\]\s*-?\s*/gi, '')
 
-  // ── Markdown ## / ### Section Headers ─────────────────────────────────────
-  // e.g. "## Executive Overview" or "### Technical Details"
-  html = html.replace(
-    /^###\s+(.+)$/gm,
-    '<h5 class="text-indigo-300 font-black text-xs mt-6 mb-2 tracking-[0.15em] uppercase">$1</h5>'
-  )
-  html = html.replace(
-    /^##\s+(.+)$/gm,
-    '<h4 class="text-cyan-400 font-black text-sm mt-8 mb-3 tracking-[0.2em] uppercase border-b border-blue-900/40 pb-2">$1</h4>'
-  )
-  html = html.replace(
-    /^#\s+(.+)$/gm,
-    '<h3 class="text-white font-black text-base mt-8 mb-3 tracking-wide">$1</h3>'
-  )
+  // 2. NORMALIZE INLINE MARKERS
+  //    AI often outputs "## Heading body text ## Next Heading" all inline.
+  //    Insert \n\n before every ## so they become proper line starts.
+  raw = raw.replace(/(###+\s+[A-Za-z])/g, '\n\n$1')
+  // Insert newline before inline bullet "• "
+  raw = raw.replace(/\s•\s/g, '\n• ')
+  // Insert newline after sentence end before next ##
+  raw = raw.replace(/([.!?])\s+(##)/g, '$1\n\n$2')
 
-  // ── Legacy ALL-CAPS section headers (keep for backwards compat) ────────────
-  const legacyHeaders = [
-    'EXECUTIVE OVERVIEW', 'THREAT ACTOR PROFILE', 'MITRE ATT&amp;CK MAPPING',
-    'TECHNICAL ANALYSIS', 'INDICATORS OF COMPROMISE', 'IMPACT ASSESSMENT',
-    'REMEDIATION DIRECTIVES', 'ANALYST VERDICT', 'INTELLIGENCE REFERENCES',
-    'SECURE THREAT INTELLIGENCE BRIEF', 'TECHNICAL DETAILS &amp; TTPS',
-    'TECHNICAL DETAILS', 'MITIGATION &amp; REMEDIATION', 'MITIGATION'
-  ]
-  legacyHeaders.forEach(header => {
-    const regex = new RegExp(`^${header}$`, 'gm')
-    html = html.replace(regex, `<h4 class="text-cyan-400 font-black text-sm mt-8 mb-3 tracking-[0.2em] uppercase border-b border-blue-900/40 pb-2">${header}</h4>`)
-  })
+  // 3. Process line-by-line
+  const lines = raw.split('\n')
+  const parts = []
 
-  // ── Bold **text** ──────────────────────────────────────────────────────────
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-100 font-bold">$1</strong>')
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim()
+    if (!line) continue
 
-  // ── Bullet points: lines starting with "• ", "* ", or "- " ───────────────
-  html = html.replace(
-    /^[•\*\-]\s+(.+)$/gm,
-    '<div class="flex gap-2 my-1"><span class="text-cyan-500 text-base font-black leading-5 shrink-0">•</span><span class="text-slate-300 text-sm leading-6">$1</span></div>'
-  )
+    // Escape HTML
+    line = line.replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-  // ── Divider lines ─────────────────────────────────────────────────────────
-  html = html.replace(/={10,}/g, '<hr class="my-6 border-blue-900/40" />')
+    // ### Sub-heading
+    if (/^###\s+/.test(line)) {
+      const title = line.replace(/^###\s+/, '')
+      parts.push(
+        `<h5 class="text-indigo-300 font-black text-xs mt-6 mb-1 tracking-[0.15em] uppercase">${title}</h5>`
+      )
 
-  // ── [KEY: VALUE] tags ─────────────────────────────────────────────────────
-  html = html.replace(
-    /\[([^\]:]+):\s*([^\]]+)\]/g,
-    '<span class="inline-block bg-blue-950/50 border border-blue-900/50 text-blue-300 px-2 py-1 rounded text-[11px] uppercase tracking-widest mr-2 mb-2 font-bold">$1: <span class="text-white">$2</span></span>'
-  )
+    // ## Section heading
+    } else if (/^##\s+/.test(line)) {
+      const title = line.replace(/^##\s+/, '')
+      parts.push(
+        `<h4 class="text-cyan-400 font-black text-sm mt-8 mb-3 tracking-[0.15em] uppercase border-b border-cyan-900/40 pb-1.5">${title}</h4>`
+      )
 
-  // ── URLs ──────────────────────────────────────────────────────────────────
-  html = html.replace(
-    /(https?:\/\/[^\s&]+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 break-all">$1</a>'
-  )
+    // # Top-level heading
+    } else if (/^#\s+/.test(line)) {
+      const title = line.replace(/^#\s+/, '')
+      parts.push(
+        `<h3 class="text-white font-black text-base mt-8 mb-3 tracking-wide">${title}</h3>`
+      )
 
-  // ── Paragraph breaks (double newlines → spacing) ──────────────────────────
-  html = html.replace(/\n\n+/g, '</p><p class="text-sm text-slate-300 leading-7 mt-3">')
-  // Single newlines inside paragraphs
-  html = html.replace(/\n/g, '<br />')
+    // Bullet point (•, *, -)
+    } else if (/^[•*\-]\s/.test(line)) {
+      const content = line
+        .replace(/^[•*\-]\s+/, '')
+        .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-100 font-semibold">$1</strong>')
+      parts.push(
+        `<div class="flex gap-2 my-1.5 items-start">` +
+          `<span class="text-cyan-400 font-black leading-6 shrink-0">•</span>` +
+          `<span class="text-slate-300 text-sm leading-6">${content}</span>` +
+        `</div>`
+      )
 
-  // Wrap the whole thing in a paragraph
-  html = `<p class="text-sm text-slate-300 leading-7">${html}</p>`
+    // Divider
+    } else if (/^={6,}/.test(line)) {
+      parts.push('<hr class="my-5 border-blue-900/40" />')
 
-  return html
+    // Normal paragraph text
+    } else {
+      const p = line
+        .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-100 font-semibold">$1</strong>')
+        .replace(
+          /\[([^\]:]+):\s*([^\]]+)\]/g,
+          '<span class="inline-block bg-blue-950/60 border border-blue-800/60 text-blue-300 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-widest mr-1 font-bold">$1: <span class="text-white">$2</span></span>'
+        )
+        .replace(
+          /(https?:\/\/[^\s&<]+)/g,
+          '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 break-all">$1</a>'
+        )
+      parts.push(`<p class="text-sm text-slate-300 leading-7">${p}</p>`)
+    }
+  }
+
+  return `<div class="space-y-1">${parts.join('')}</div>`
 }
-

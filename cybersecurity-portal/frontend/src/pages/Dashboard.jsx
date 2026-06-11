@@ -207,25 +207,42 @@ function CveCard({ cve, idx }) {
 }
 
 // ── Advisory Feed Row ─────────────────────────────────────────────────────────
-function FeedRow({ advisory, compact }) {
+function FeedRow({ advisory, idx, isLast }) {
   const sev = SEV_CONFIG[advisory.severity] || SEV_CONFIG.informational
+  const delay = 400 + (idx * 100) // staggered animation delay
+
   return (
     <Link to={`/advisories/${advisory.id}`}
-      className="group flex items-start gap-3 p-3 rounded-xl border border-transparent hover:border-slate-700/50 hover:bg-slate-800/20 transition-all duration-200">
-      <div className="flex-shrink-0 mt-0.5 w-2 h-2 rounded-full mt-1.5" style={{ background: sev.color, boxShadow: `0 0 6px ${sev.color}` }} />
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-slate-200 group-hover:text-white transition-colors line-clamp-1 leading-snug">
+      className="group relative flex items-start gap-4 p-3 -mx-2 rounded-xl hover:bg-slate-800/30 transition-all duration-300 animate-in fade-in slide-in-from-right-4 fill-mode-both"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      {/* Connecting Timeline Track */}
+      <div className="relative flex flex-col items-center mt-1 flex-shrink-0">
+        <div className="relative flex items-center justify-center w-5 h-5">
+          <span className="absolute w-full h-full rounded-full opacity-0 group-hover:opacity-30 group-hover:animate-ping transition-all" style={{ background: sev.color }} />
+          <span className="relative w-2 h-2 rounded-full transition-transform duration-300 group-hover:scale-125" style={{ background: sev.color, boxShadow: `0 0 8px ${sev.color}` }} />
+        </div>
+        {!isLast && <div className="absolute top-6 w-px h-12 bg-gradient-to-b from-slate-700 to-transparent" />}
+      </div>
+
+      <div className="min-w-0 flex-1 py-1">
+        <div className="text-[13px] font-bold text-slate-300 group-hover:text-white transition-colors line-clamp-2 leading-relaxed">
           {advisory.title}
         </div>
-        <div className="flex items-center gap-2 mt-1">
-          <span className={clsx('text-[9px] font-black uppercase px-1.5 py-0.5 rounded border', sev.text, sev.bg, sev.border)}>{advisory.severity}</span>
+        <div className="flex items-center gap-2 mt-2.5">
+          <span className={clsx('text-[9px] font-black uppercase px-2 py-0.5 rounded border', sev.text, sev.bg, sev.border)}>{advisory.severity}</span>
           {advisory.cvss_score > 0 && (
             <span className={clsx('text-[10px] font-black tabular-nums', sev.text)}>{advisory.cvss_score}</span>
           )}
-          <span className="text-[10px] text-slate-600 ml-auto flex-shrink-0">{formatDateTime(advisory.published_at || advisory.created_at)}</span>
+          <span className="text-[10px] text-slate-500 font-medium ml-auto flex-shrink-0 group-hover:text-slate-400 transition-colors">
+            {formatDateTime(advisory.published_at || advisory.created_at)}
+          </span>
         </div>
       </div>
-      <ChevronRight className="w-3.5 h-3.5 text-slate-700 group-hover:text-slate-400 transition-colors flex-shrink-0 mt-1" />
+
+      <div className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-slate-800/50 border border-slate-700/50 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 -translate-x-4 transition-all duration-300 mt-2">
+        <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-white" />
+      </div>
     </Link>
   )
 }
@@ -538,9 +555,9 @@ export default function Dashboard() {
               View All <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
-          <div className="flex-1 overflow-y-auto space-y-1 pr-1" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex-1 overflow-y-auto pr-4 pl-2" style={{ scrollbarWidth: 'none' }}>
             {stats?.secure_advisories?.length > 0
-              ? stats.secure_advisories.map(a => <FeedRow key={a.id} advisory={a} />)
+              ? stats.secure_advisories.map((a, i, arr) => <FeedRow key={a.id} advisory={a} idx={i} isLast={i === arr.length - 1} />)
               : <div className="h-full flex items-center justify-center text-slate-600 text-sm">No internal advisories</div>
             }
           </div>
@@ -559,9 +576,9 @@ export default function Dashboard() {
               View All <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
-          <div className="flex-1 overflow-y-auto space-y-1 pr-1" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex-1 overflow-y-auto pr-4 pl-2" style={{ scrollbarWidth: 'none' }}>
             {stats?.open_source_advisories?.length > 0
-              ? stats.open_source_advisories.map(a => <FeedRow key={a.id} advisory={a} />)
+              ? stats.open_source_advisories.map((a, i, arr) => <FeedRow key={a.id} advisory={a} idx={i} isLast={i === arr.length - 1} />)
               : <div className="h-full flex items-center justify-center text-slate-600 text-sm">No external feed data</div>
             }
           </div>

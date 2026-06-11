@@ -21,12 +21,11 @@ SYS_PROMPT = (
     "You are a Principal Threat Intelligence Analyst at SecureEye Global Operations Center. "
     "You produce CLASSIFIED, board-level intelligence reports for Fortune 500 CISOs and government security agencies. "
     "STRICT OUTPUT RULES — VIOLATING ANY RULE MAKES THE REPORT INVALID: "
-    "(1) NEVER use asterisks (*), hashtags (#), double asterisks (**), underscores (_), or ANY markdown formatting. "
+    "(1) ALWAYS use rich Markdown formatting including **bold**, `## Headers`, and bullet points. "
     "(2) ALWAYS use EXACTLY the section headers provided — no additions, no omissions, no reordering. "
-    "(3) Use ONLY plain dashes (-) for bullet points. "
-    "(4) Output CLEAN PLAIN TEXT only — no bold, no italic, no headers with #. "
-    "(5) If data is unknown, say what is unknown and what evidence is needed. "
-    "(6) Be authoritative, precise, terse, and technically accurate. (7) Never invent CVEs, exploit status, vendors, statistics, or source URLs."
+    "(3) Use ONLY plain dashes (-) or bullet points (•) for lists. "
+    "(4) If data is unknown, say what is unknown and what evidence is needed. "
+    "(5) Be authoritative, precise, terse, and technically accurate. (6) Never invent CVEs, exploit status, vendors, statistics, or source URLs."
 )
 
 async def _try_gemini(prompt: str, api_key: str, model: str = "gemini-2.0-flash", max_tokens: int = 3000, sys_prompt: str = SYS_PROMPT, use_search: bool = False) -> str | None:
@@ -213,15 +212,15 @@ async def get_ai_summary(content: str) -> str:
 
 CRITICAL RULES:
 - Use the supplied content as evidence. If a fact is not present or cannot be verified, explicitly mark it as unverified.
-- ALWAYS use rich Markdown formatting: **bold**, bullet points, `## Headers`, and tables.
-- ALWAYS end your response with a `## References` section. Include only real, relevant hyperlinks that are present in the content or stable official sources such as NVD, CISA, MITRE, vendor advisories, abuse.ch, Shodan, or URLScan. Do not fabricate article URLs.
-- Include the following sections in your report:
+- ALWAYS use rich Markdown formatting: **bold**, bullet points, and `## Headers`.
+- Include the following sections in your report EXACTLY as written with `## ` prefix:
   - `## Executive Overview`
   - `## Technical Details & TTPs`
   - `## Impact Assessment`
   - `## Indicators of Compromise (IOCs)`
   - `## Mitigation & Remediation`
   - `## References`
+- Under `## References`, include only real, relevant hyperlinks present in the content or from stable official sources. Do not fabricate URLs.
 
 CONTENT TO ANALYZE:
 {content[:14000]}

@@ -71,13 +71,22 @@ async def predict_impact(
     if not advisory:
         raise HTTPException(status_code=404, detail="Advisory not found")
         
-    prompt = f"""Act as an expert Cyber Threat Intelligence Forecaster. 
-Predict the potential blast radius, long-term impact, and likely future evolution of this threat over the next 6-12 months.
-Provide a concise overview paragraph, followed by a bulleted list of 3-4 specific future threat scenarios.
-Use newlines (\\n) to separate paragraphs and bullet points. Use the bullet character (•) for the list. Do not use markdown headers.
+    prompt = f"""You are a Cyber Threat Intelligence Forecaster. Analyze the threat below and produce output in EXACTLY this format with NO deviations:
+
+OVERVIEW:
+[2-3 sentence paragraph about blast radius and long-term impact]
+
+FUTURE SCENARIOS:
+• [First specific future threat scenario]
+• [Second specific future threat scenario]
+• [Third specific future threat scenario]
+• [Fourth specific future threat scenario]
+
+EVIDENCE GAPS:
+[What additional intelligence is needed to refine this forecast]
 
 Threat Title: {advisory.title}
-Threat Description: {advisory.description}
+Threat Description: {advisory.description[:2000]}
 """
     prediction = await ai_service.summarize_threat_report(prompt)
     return {"prediction": prediction}

@@ -216,6 +216,102 @@ const formatSourceDomain = (url) => {
   } catch { return 'External' }
 }
 
+// ── Prediction Renderer ───────────────────────────────────────────────────────
+// Parses structured AI forecast output into beautiful section cards
+function PredictionRenderer({ text }) {
+  if (!text) return null
+
+  // Normalize: split on inline dash bullets that appear without newlines
+  // e.g. "sentence. - Bullet 1 - Bullet 2" → split them out
+  const normalized = text
+    .replace(/\. - /g, '.\n• ')
+    .replace(/\n- /g, '\n• ')
+    .replace(/^- /gm, '• ')
+
+  const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean)
+
+  const sections = []
+  let current = null
+
+  for (const line of lines) {
+    const isHeader = /^(OVERVIEW|FUTURE SCENARIOS|EVIDENCE GAPS)\s*:?$/i.test(line)
+    if (isHeader) {
+      const label = line.replace(/:$/, '').toUpperCase()
+      current = { label, items: [] }
+      sections.push(current)
+    } else if (current) {
+      current.items.push(line)
+    } else {
+      // Text before any header — treat as overview
+      current = { label: 'OVERVIEW', items: [line] }
+      sections.push(current)
+    }
+  }
+
+  // If AI didn't use structured headers, fallback to bullet detection
+  if (sections.length === 0 || (sections.length === 1 && sections[0].label !== 'OVERVIEW')) {
+    return (
+      <div className="space-y-2">
+        {lines.map((line, i) => {
+          const isBullet = /^[•\-\*]/.test(line)
+          return isBullet ? (
+            <div key={i} className="flex items-start gap-3">
+              <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-cyan-400 flex-shrink-0" />
+              <span className="text-sm text-slate-200 leading-relaxed">{line.replace(/^[•\-\*]\s*/, '')}</span>
+            </div>
+          ) : (
+            <p key={i} className="text-sm text-slate-300 leading-relaxed">{line}</p>
+          )
+        })}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {sections.map((section, si) => {
+        const isScenarios = section.label === 'FUTURE SCENARIOS'
+        const isGaps = section.label === 'EVIDENCE GAPS'
+        return (
+          <div key={si}>
+            <div className={clsx(
+              'text-[10px] font-black uppercase tracking-[0.18em] mb-2',
+              isScenarios ? 'text-cyan-400' : isGaps ? 'text-amber-400' : 'text-blue-300'
+            )}>
+              {section.label}
+            </div>
+            {isScenarios ? (
+              <div className="space-y-2">
+                {section.items.map((item, ii) => {
+                  const clean = item.replace(/^[•\-\*]\s*/, '')
+                  return (
+                    <div key={ii} className="flex items-start gap-3 rounded-lg bg-cyan-950/20 border border-cyan-500/10 px-3 py-2.5">
+                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-cyan-400 flex-shrink-0" />
+                      <span className="text-sm text-slate-200 leading-relaxed">{clean}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : isGaps ? (
+              <div className="rounded-lg border border-amber-500/20 bg-amber-950/10 px-4 py-3">
+                {section.items.map((item, ii) => (
+                  <p key={ii} className="text-sm text-amber-200/80 leading-relaxed">{item.replace(/^[•\-\*]\s*/, '')}</p>
+                ))}
+              </div>
+            ) : (
+              <div className="border-l-2 border-blue-500/40 pl-4">
+                {section.items.map((item, ii) => (
+                  <p key={ii} className="text-sm text-slate-200 leading-relaxed font-medium">{item}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function AdvisoryDetail() {
   const { id } = useParams()
@@ -578,11 +674,7 @@ export default function AdvisoryDetail() {
                     <span className="text-sm font-medium animate-pulse">Running advanced threat simulations...</span>
                   </div>
                 ) : prediction ? (
-                  <div className="space-y-3">
-                    {prediction.split('\n').filter(p => p.trim()).map((p, i) => (
-                      <div key={i} className="text-sm text-slate-200 leading-relaxed border-l-2 border-blue-500/40 pl-4 font-medium">{p}</div>
-                    ))}
-                  </div>
+                  <PredictionRenderer text={prediction} />
                 ) : (
                   <div className="text-center py-6">
                     <p className="text-sm text-blue-400/70 mb-4 font-medium">Calculate potential blast radius and future exploit vectors.</p>

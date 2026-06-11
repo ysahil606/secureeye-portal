@@ -504,19 +504,24 @@ function ZeroDayCard({ vuln, onAnalyze, index }) {
             {vuln.cveID}
           </span>
 
+          {/* Confirmed-by source badges */}
           {vuln.is_project_zero && (
             <SourceTag label="Project Zero" icon={Shield} color="text-blue-300" bg="bg-blue-500/10" border="border-blue-500/25" />
           )}
+          {vuln.is_nvd_recent && (
+            <SourceTag label="NVD Recent" icon={Activity} color="text-cyan-300" bg="bg-cyan-500/10" border="border-cyan-500/25" />
+          )}
+          {vuln.certcc && (
+            <SourceTag label="CERT/CC" icon={ShieldAlert} color="text-yellow-300" bg="bg-yellow-500/10" border="border-yellow-500/25" />
+          )}
           {vuln.has_public_exploit && (
             <SourceTag label="PoC Exploit" icon={Terminal} color="text-orange-300" bg="bg-orange-500/10" border="border-orange-500/25" />
-          )}
-          {vuln.is_zdi_upcoming && (
-            <SourceTag label="Unpatched ZDI" icon={Activity} color="text-purple-300" bg="bg-purple-500/10" border="border-purple-500/25" />
           )}
           <span className="ml-auto text-[10px] font-bold text-slate-600 flex items-center gap-1">
             <Calendar className="h-3 w-3" />
             {vuln.dateAdded}
           </span>
+
         </div>
 
         {/* Title */}

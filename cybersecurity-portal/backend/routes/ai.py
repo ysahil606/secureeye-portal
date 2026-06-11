@@ -73,7 +73,8 @@ async def predict_impact(
         
     prompt = f"""Act as an expert Cyber Threat Intelligence Forecaster. 
 Predict the potential blast radius, long-term impact, and likely future evolution of this threat over the next 6-12 months.
-Do not use markdown formatting like bolding or headers. Keep it as a highly professional plain-text intelligence forecast paragraph.
+Provide a concise overview paragraph, followed by a bulleted list of 3-4 specific future threat scenarios.
+Use newlines (\\n) to separate paragraphs and bullet points. Use the bullet character (•) for the list. Do not use markdown headers.
 
 Threat Title: {advisory.title}
 Threat Description: {advisory.description}

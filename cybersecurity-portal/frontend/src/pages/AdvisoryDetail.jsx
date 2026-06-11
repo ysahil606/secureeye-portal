@@ -216,101 +216,7 @@ const formatSourceDomain = (url) => {
   } catch { return 'External' }
 }
 
-// ── Prediction Renderer ───────────────────────────────────────────────────────
-// Parses structured AI forecast output into beautiful section cards
-function PredictionRenderer({ text }) {
-  if (!text) return null
 
-  // Normalize: split on inline dash bullets that appear without newlines
-  // e.g. "sentence. - Bullet 1 - Bullet 2" → split them out
-  const normalized = text
-    .replace(/\. - /g, '.\n• ')
-    .replace(/\n- /g, '\n• ')
-    .replace(/^- /gm, '• ')
-
-  const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean)
-
-  const sections = []
-  let current = null
-
-  for (const line of lines) {
-    const isHeader = /^(OVERVIEW|FUTURE SCENARIOS|EVIDENCE GAPS)\s*:?$/i.test(line)
-    if (isHeader) {
-      const label = line.replace(/:$/, '').toUpperCase()
-      current = { label, items: [] }
-      sections.push(current)
-    } else if (current) {
-      current.items.push(line)
-    } else {
-      // Text before any header — treat as overview
-      current = { label: 'OVERVIEW', items: [line] }
-      sections.push(current)
-    }
-  }
-
-  // If AI didn't use structured headers, fallback to bullet detection
-  if (sections.length === 0 || (sections.length === 1 && sections[0].label !== 'OVERVIEW')) {
-    return (
-      <div className="space-y-2">
-        {lines.map((line, i) => {
-          const isBullet = /^[•\-\*]/.test(line)
-          return isBullet ? (
-            <div key={i} className="flex items-start gap-3">
-              <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-cyan-400 flex-shrink-0" />
-              <span className="text-sm text-slate-200 leading-relaxed">{line.replace(/^[•\-\*]\s*/, '')}</span>
-            </div>
-          ) : (
-            <p key={i} className="text-sm text-slate-300 leading-relaxed">{line}</p>
-          )
-        })}
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-4">
-      {sections.map((section, si) => {
-        const isScenarios = section.label === 'FUTURE SCENARIOS'
-        const isGaps = section.label === 'EVIDENCE GAPS'
-        return (
-          <div key={si}>
-            <div className={clsx(
-              'text-[10px] font-black uppercase tracking-[0.18em] mb-2',
-              isScenarios ? 'text-cyan-400' : isGaps ? 'text-amber-400' : 'text-blue-300'
-            )}>
-              {section.label}
-            </div>
-            {isScenarios ? (
-              <div className="space-y-2">
-                {section.items.map((item, ii) => {
-                  const clean = item.replace(/^[•\-\*]\s*/, '')
-                  return (
-                    <div key={ii} className="flex items-start gap-3 rounded-lg bg-cyan-950/20 border border-cyan-500/10 px-3 py-2.5">
-                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-cyan-400 flex-shrink-0" />
-                      <span className="text-sm text-slate-200 leading-relaxed">{clean}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : isGaps ? (
-              <div className="rounded-lg border border-amber-500/20 bg-amber-950/10 px-4 py-3">
-                {section.items.map((item, ii) => (
-                  <p key={ii} className="text-sm text-amber-200/80 leading-relaxed">{item.replace(/^[•\-\*]\s*/, '')}</p>
-                ))}
-              </div>
-            ) : (
-              <div className="border-l-2 border-blue-500/40 pl-4">
-                {section.items.map((item, ii) => (
-                  <p key={ii} className="text-sm text-slate-200 leading-relaxed font-medium">{item}</p>
-                ))}
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function AdvisoryDetail() {
@@ -662,25 +568,28 @@ export default function AdvisoryDetail() {
               </div>
 
               {/* Predictive forecast */}
-              <div className="rounded-2xl border border-blue-500/25 bg-gradient-to-br from-blue-900/15 to-cyan-900/10 p-6">
+              <div className="rounded-2xl border border-indigo-500/25 bg-gradient-to-br from-indigo-900/15 to-purple-900/10 p-6">
                 <div className="flex items-center gap-2 mb-4">
-                  <BarChart3 className="h-4 w-4 text-blue-400" />
-                  <span className="text-sm font-bold text-blue-300 uppercase tracking-widest">Predictive Threat Forecast</span>
-                  <span className="ml-auto text-xs text-slate-500 border border-slate-700 bg-slate-900 rounded-full px-2 py-0.5 font-bold uppercase tracking-wider">Neural Engine</span>
+                  <Sparkles className="h-4 w-4 text-indigo-400" />
+                  <span className="text-sm font-bold text-indigo-300">Predictive Threat Forecast</span>
+                  <span className="ml-auto text-xs text-slate-500 border border-slate-700 bg-slate-900 rounded-full px-2 py-0.5 font-bold">Neural Engine</span>
                 </div>
                 {generatingPrediction ? (
-                  <div className="flex items-center gap-3 py-6 text-blue-300">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span className="text-sm font-medium animate-pulse">Running advanced threat simulations...</span>
+                  <div className="flex items-center gap-3 text-indigo-300 py-6">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span className="text-sm">Synthesising threat intelligence from multiple sources…</span>
                   </div>
                 ) : prediction ? (
-                  <PredictionRenderer text={prediction} />
+                  <div
+                    className="text-sm text-slate-300 leading-7 space-y-1"
+                    dangerouslySetInnerHTML={{ __html: formatAIReport(prediction) }}
+                  />
                 ) : (
-                  <div className="text-center py-6">
-                    <p className="text-sm text-blue-400/70 mb-4 font-medium">Calculate potential blast radius and future exploit vectors.</p>
+                  <div className="text-center py-8">
+                    <p className="text-sm text-slate-500 mb-4">Generate a predictive intelligence forecast covering blast radius, attribution, and future threat vectors.</p>
                     <button onClick={generatePrediction}
-                      className="mx-auto flex items-center gap-2 text-sm font-bold text-white uppercase tracking-wider bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.2)]">
-                      <BarChart3 className="w-4 h-4" /> Execute Forecast Algorithm
+                      className="flex items-center gap-2 mx-auto rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-5 py-2.5 transition">
+                      <Sparkles className="h-4 w-4" /> Execute Forecast Algorithm
                     </button>
                   </div>
                 )}

@@ -71,19 +71,25 @@ async def predict_impact(
     if not advisory:
         raise HTTPException(status_code=404, detail="Advisory not found")
         
-    prompt = f"""You are a Cyber Threat Intelligence Forecaster. Analyze the threat below and produce output in EXACTLY this format with NO deviations:
+    prompt = f"""You are an elite Cyber Threat Intelligence Forecaster at SecureEye Global Operations Center.
+Analyze the threat below and produce a STRUCTURED intelligence forecast in EXACTLY this format.
+ALWAYS use ## headers and bullet points with •. Do NOT deviate from the section structure.
 
-OVERVIEW:
-[2-3 sentence paragraph about blast radius and long-term impact]
+## Blast Radius Assessment
+[2-3 sentences on scope, affected organizations, and scale of impact]
 
-FUTURE SCENARIOS:
-• [First specific future threat scenario]
-• [Second specific future threat scenario]
-• [Third specific future threat scenario]
-• [Fourth specific future threat scenario]
+## 6–12 Month Threat Forecast
+• [Specific scenario 1 — how attackers will evolve this threat]
+• [Specific scenario 2 — integration with attack frameworks or threat groups]
+• [Specific scenario 3 — supply chain or lateral movement implications]
+• [Specific scenario 4 — patching timeline and exposure window]
 
-EVIDENCE GAPS:
-[What additional intelligence is needed to refine this forecast]
+## Attribution Indicators
+[Known or suspected threat actor types, TTPs, and motivation]
+
+## Evidence Gaps
+• [What additional intelligence is needed to refine this forecast]
+• [Data sources that would improve confidence level]
 
 Threat Title: {advisory.title}
 Threat Description: {advisory.description[:2000]}

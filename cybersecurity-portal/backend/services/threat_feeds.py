@@ -71,12 +71,13 @@ SECTOR_KEYWORDS = {
         "web", "website", "application", "software", "api", "rest",
         "graphql", "sql", "sqli", "xss", "csrf", "ssrf", "database",
         "java", "python", "php", "javascript", "nodejs", "wordpress",
-        "magento", "drupal", "apache", "nginx", "iis", "tomcat",
+        "magento", "drupal", "apache", "nginx", "iis", "tomcat", "plugin", "library",
     ],
     "endpoint": [
         "windows", "linux", "macos", "android", "ios", "endpoint",
         "antivirus", "edr", "xdr", "mobile", "laptop", "workstation",
-        "desktop", "macos", "ios", "iphone", "ipad", "android",
+        "desktop", "iphone", "ipad", "debian", "ubuntu", "redhat", "centos",
+        "kernel", "operating system", "os", "firmware",
     ],
     "bfsi": [
         "bank", "banking", "financial", "finance", "insurance", "insurer",
@@ -213,7 +214,9 @@ def _infer_sector(db: Session, *parts: Optional[str]) -> Optional[Sector]:
             best_score = score
 
     if not best_match:
-        return None
+        # Fallback to Application as a catch-all for vulnerabilities 
+        # to ensure at least 1 sector is assigned according to the summary content.
+        return sector_lookup.get("application")
 
     return sector_lookup.get(_normalize_sector_key(best_match))
 

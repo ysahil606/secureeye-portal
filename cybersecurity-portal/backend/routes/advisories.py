@@ -254,8 +254,24 @@ async def create_advisory(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.admin, UserRole.analyst)),
 ):
+    from services.threat_feeds import enrich_advisory_metadata
+    
+    dump = data.model_dump()
+    
+    # Auto-assign sector if missing or 0
+    if not dump.get("sector_id"):
+        meta = enrich_advisory_metadata(
+            db, 
+            dump.get("title"), 
+            dump.get("description"), 
+            dump.get("source_url"), 
+            dump.get("affected_vendors")
+        )
+        if meta.get("sector_id"):
+            dump["sector_id"] = meta["sector_id"]
+
     advisory = Advisory(
-        **data.model_dump(),
+        **dump,
         source=AdvisorySource.manual,
         status=AdvisoryStatus.pending,
         author_id=current_user.id,
@@ -274,11 +290,27 @@ async def update_advisory(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRole.admin, UserRole.analyst)),
 ):
+    from services.threat_feeds import enrich_advisory_metadata
+    
     advisory = db.query(Advisory).filter(Advisory.id == advisory_id).first()
     if not advisory:
         raise HTTPException(status_code=404, detail="Advisory not found")
 
-    for k, v in data.model_dump(exclude_none=True).items():
+    dump = data.model_dump(exclude_none=True)
+    
+    # If the sector_id is explicitly set to None (or 0 if UI passes it), try to auto-infer
+    if "sector_id" in data.model_dump() and not data.sector_id:
+        meta = enrich_advisory_metadata(
+            db,
+            dump.get("title", advisory.title),
+            dump.get("description", advisory.description),
+            advisory.source_url,
+            dump.get("affected_vendors", advisory.affected_vendors)
+        )
+        if meta.get("sector_id"):
+            dump["sector_id"] = meta["sector_id"]
+
+    for k, v in dump.items():
         setattr(advisory, k, v)
 
     _check_critical(advisory)

@@ -621,7 +621,7 @@ export default function AdvisoryDetail() {
 
             <div className="space-y-3 border-t border-slate-800/60 pt-4">
               {[
-                { label: 'Sector', value: advisory.sector?.name || 'Uncategorized', icon: Tag },
+                { label: 'Sector', value: advisory.sector?.name || 'Cross-Sector', icon: Tag },
                 { label: 'Source', value: advisory.source_url ? formatSourceDomain(advisory.source_url) : (advisory.source || 'Unknown'), icon: Globe },
                 { label: 'Published', value: formatDateTime(advisory.published_at || advisory.created_at), icon: Clock },
                 { label: 'Zero-Day Status', value: advisory.zero_day_status || null, icon: Zap },

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  RadialBarChart, RadialBar, Cell, AreaChart, Area
+  RadialBarChart, RadialBar, Cell, AreaChart, Area, PieChart, Pie
 } from 'recharts'
 import {
   AlertTriangle, FileText, Shield, Bug, Clock, Cpu, Activity,
@@ -110,29 +110,43 @@ function ThreatTicker({ advisories }) {
   )
 }
 
-// ── Severity Radial ───────────────────────────────────────────────────────────
+// ── Severity Donut ────────────────────────────────────────────────────────────
 function SeverityRadial({ data }) {
   const total = data.reduce((s, d) => s + d.value, 0) || 1
   return (
     <div className="relative flex flex-col items-center">
-      <ResponsiveContainer width="100%" height={200}>
-        <RadialBarChart cx="50%" cy="50%" innerRadius="35%" outerRadius="90%" data={data} startAngle={90} endAngle={-270}>
-          {data.map((d, i) => (
-            <RadialBar key={i} dataKey="value" data={[d]} fill={SEV_CONFIG[d.name.toLowerCase()]?.color || '#64748b'} cornerRadius={4} />
-          ))}
+      <ResponsiveContainer width="100%" height={220}>
+        <PieChart>
+          <Pie
+            data={data}
+            cx="50%"
+            cy="50%"
+            innerRadius={65}
+            outerRadius={85}
+            paddingAngle={4}
+            dataKey="value"
+            stroke="none"
+          >
+            {data.map((d, i) => (
+              <Cell key={i} fill={SEV_CONFIG[d.name.toLowerCase()]?.color || '#64748b'} />
+            ))}
+          </Pie>
           <Tooltip
             content={({ active, payload }) => active && payload?.length ? (
-              <div className="bg-slate-900/95 border border-slate-700 rounded-xl px-3 py-2 text-xs">
-                <div className="font-black text-white">{payload[0].payload.name}</div>
-                <div className="text-slate-400">{payload[0].value} advisories</div>
+              <div className="bg-slate-900/95 border border-slate-700 rounded-xl px-3 py-2 text-xs shadow-2xl">
+                <div className="font-black text-white flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: payload[0].payload.fill }} />
+                  {payload[0].payload.name}
+                </div>
+                <div className="text-slate-400 mt-1">{payload[0].value} advisories tracked</div>
               </div>
             ) : null}
           />
-        </RadialBarChart>
+        </PieChart>
       </ResponsiveContainer>
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <div className="text-3xl font-black text-white tabular-nums">{total}</div>
-        <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Total</div>
+        <div className="text-3xl font-black text-white tabular-nums tracking-tighter drop-shadow-lg">{total}</div>
+        <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Total</div>
       </div>
     </div>
   )

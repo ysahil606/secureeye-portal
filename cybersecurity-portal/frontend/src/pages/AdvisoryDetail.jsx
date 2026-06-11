@@ -6,7 +6,7 @@ import {
   Tag, Clock, User, Activity, Zap, FileText,
   Terminal, BarChart3, Copy, TerminalSquare, Loader2,
   Key, Globe, Hash, Server, Database, ChevronRight,
-  Crosshair, ShieldAlert, Lock, Fingerprint, Info
+  Crosshair, ShieldAlert, Lock, Fingerprint, Info, Sparkles
 } from 'lucide-react'
 import api from '../services/api'
 import SeverityBadge from '../components/SeverityBadge'
@@ -545,48 +545,52 @@ export default function AdvisoryDetail() {
 
           {/* ── AI Brief tab ──────────────────────────────────────────────── */}
           {activeTab === 'ai' && (
-            <div className="animate-in fade-in duration-300 space-y-4">
-              {advisory.ai_summary ? (
-                <div className="rounded-xl border border-purple-500/20 bg-purple-950/10 p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center animate-pulse">
-                      <Activity className="w-3.5 h-3.5 text-purple-300" />
-                    </div>
-                    <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest">AI Analysis Engine</span>
-                  </div>
-                  <div className="text-sm text-slate-200 leading-relaxed"
+            <div className="animate-in fade-in duration-300 space-y-6">
+              
+              {/* AI Intelligence Brief */}
+              <div className="rounded-2xl border border-indigo-500/25 bg-gradient-to-br from-indigo-900/15 to-purple-900/10 p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="h-4 w-4 text-indigo-400" />
+                  <span className="text-sm font-bold text-indigo-300 uppercase tracking-widest">AI Intelligence Brief</span>
+                  <span className="ml-auto text-xs text-slate-500 border border-slate-700 bg-slate-900 rounded-full px-2 py-0.5 font-bold uppercase tracking-wider">Groq-Powered</span>
+                </div>
+                {advisory.ai_summary ? (
+                  <div className="text-sm text-slate-200 leading-relaxed font-medium"
                     dangerouslySetInnerHTML={{ __html: formatAIReport(advisory.ai_summary) }}
                   />
-                </div>
-              ) : (
-                <div className="py-8 text-center rounded-xl border border-slate-800 bg-slate-900/40">
-                  <Activity className="w-10 h-10 text-slate-700 mx-auto mb-3" />
-                  <p className="text-slate-500 text-sm">No AI summary available yet.</p>
-                </div>
-              )}
+                ) : (
+                  <div className="text-center py-6 text-indigo-400/50 text-sm font-medium">
+                    No intelligence brief available for this advisory.
+                  </div>
+                )}
+              </div>
 
               {/* Predictive forecast */}
-              <div className="rounded-xl border border-blue-500/20 bg-blue-950/10 p-5">
+              <div className="rounded-2xl border border-blue-500/25 bg-gradient-to-br from-blue-900/15 to-cyan-900/10 p-6">
                 <div className="flex items-center gap-2 mb-4">
-                  <BarChart3 className="w-4 h-4 text-blue-400" />
-                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Predictive Threat Forecast</span>
+                  <BarChart3 className="h-4 w-4 text-blue-400" />
+                  <span className="text-sm font-bold text-blue-300 uppercase tracking-widest">Predictive Threat Forecast</span>
+                  <span className="ml-auto text-xs text-slate-500 border border-slate-700 bg-slate-900 rounded-full px-2 py-0.5 font-bold uppercase tracking-wider">Neural Engine</span>
                 </div>
                 {generatingPrediction ? (
-                  <div className="flex items-center gap-3 py-4">
-                    <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
-                    <span className="text-xs text-blue-400/70 animate-pulse uppercase tracking-wider">Running simulations...</span>
+                  <div className="flex items-center gap-3 py-6 text-blue-300">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm font-medium animate-pulse">Running advanced threat simulations...</span>
                   </div>
                 ) : prediction ? (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {prediction.split('\n').filter(p => p.trim()).map((p, i) => (
-                      <div key={i} className="text-sm text-slate-300 leading-relaxed border-l-2 border-blue-500/30 pl-3">{p}</div>
+                      <div key={i} className="text-sm text-slate-200 leading-relaxed border-l-2 border-blue-500/40 pl-4 font-medium">{p}</div>
                     ))}
                   </div>
                 ) : (
-                  <button onClick={generatePrediction}
-                    className="text-xs font-bold text-blue-400 hover:text-white uppercase tracking-wider border border-blue-500/25 px-5 py-2.5 rounded-xl hover:bg-blue-500/15 transition-all">
-                    Execute Forecast Algorithm
-                  </button>
+                  <div className="text-center py-6">
+                    <p className="text-sm text-blue-400/70 mb-4 font-medium">Calculate potential blast radius and future exploit vectors.</p>
+                    <button onClick={generatePrediction}
+                      className="mx-auto flex items-center gap-2 text-sm font-bold text-white uppercase tracking-wider bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.2)]">
+                      <BarChart3 className="w-4 h-4" /> Execute Forecast Algorithm
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

@@ -1,25 +1,26 @@
 """
-Dark Web Monitor — Fully Upgraded Production-Grade Breach & Exposure Intelligence
+Dark Web Monitor — Production-Grade Breach & Exposure Intelligence
 Free Sources (No API Key Required):
-  1. HIBP All Breaches List  — matches against known domain breaches, 100% free
-  2. URLScan.io              — scans/screenshots showing domain in malicious context
-  3. EmailRep.io             — email reputation + breach signals
-  4. HIBP Pwned Passwords    — k-Anonymity password check
-  5. URLhaus (abuse.ch)      — malicious URL feed
-  6. ThreatFox (abuse.ch)    — IOC feed
-  7. OpenPhish               — active phishing feed
-  8. HackerTarget            — subdomain/IP mapping
-  9. Crt.sh                  — certificate transparency
- 10. Shodan InternetDB       — IP vulnerability data
- 11. IntelX Phonebook        — public exposure search (no key, limited)
- 12. LeakCheck.io Public API — billions of records, no key required
- 13. XposedOrNot Public API  — billions of records for emails, no key
- 14. Local SecureEye DB      — our own advisories + IOCs
+  1. HIBP All Breaches List     — domain breach cross-reference, 100% free
+  2. URLScan.io                 — domain in malicious scan context
+  3. EmailRep.io                — email reputation + breach signals
+  4. HIBP Pwned Passwords       — k-Anonymity password check
+  5. URLhaus (abuse.ch)         — malicious URL feed
+  6. ThreatFox (abuse.ch)       — IOC feed
+  7. OpenPhish                  — active phishing feed
+  8. HackerTarget               — subdomain/IP mapping
+  9. Crt.sh                     — certificate transparency
+ 10. Shodan InternetDB          — IP vulnerability data
+ 11. IntelX Phonebook           — public exposure search (no key, limited)
+ 12. LeakCheck.io Public API    — billions of records, no key
+ 13. XposedOrNot Public API     — billions of records for emails, no key
+ 14. GreyNoise Community API    — IP noise / threat classification, no key
+ 15. AlienVault OTX Public      — domain/IP threat intel, no key
+ 16. psbdmp.ws Pastebin Search  — pastebin dump search, no key
+ 17. Local SecureEye DB         — our own advisories + IOCs
 Optional (With API Key):
- 14. VirusTotal              — VIRUSTOTAL_API_KEY
- 15. AlienVault OTX          — ALIENVAULT_OTX_API_KEY
- 16. Leak-Lookup             — LEAK_LOOKUP_API_KEY
- 17. BreachDirectory         — BREACH_DIRECTORY_API_KEY
+ 18. Leak-Lookup                — LEAK_LOOKUP_API_KEY
+ 19. BreachDirectory            — BREACH_DIRECTORY_API_KEY
 """
 import httpx
 import hashlib
@@ -50,25 +51,28 @@ def normalize_query(value: str) -> str:
 
 
 SOURCE_LABELS = {
-    "emailrep": "EmailRep.io",
+    "emailrep":    "EmailRep.io",
     "hibp_domain": "Have I Been Pwned Breach Corpus",
-    "hibp_pass": "HIBP Pwned Passwords",
-    "urlscan": "URLScan.io",
-    "urlhaus": "URLhaus",
-    "threatfox": "ThreatFox",
-    "openphish": "OpenPhish",
-    "shodan": "Shodan InternetDB",
-    "intelx": "IntelX Phonebook",
-    "leakcheck": "LeakCheck.io",
+    "hibp_pass":   "HIBP Pwned Passwords",
+    "urlscan":     "URLScan.io",
+    "urlhaus":     "URLhaus (abuse.ch)",
+    "threatfox":   "ThreatFox (abuse.ch)",
+    "openphish":   "OpenPhish",
+    "shodan":      "Shodan InternetDB",
+    "intelx":      "IntelX Phonebook",
+    "leakcheck":   "LeakCheck.io",
     "xposedornot": "XposedOrNot",
-    "crtsh": "crt.sh Certificate Transparency",
-    "hackertarget": "HackerTarget",
+    "crtsh":       "crt.sh Certificate Transparency",
+    "hackertarget":"HackerTarget",
     "threatminer": "ThreatMiner",
-    "wayback": "Internet Archive CDX",
+    "wayback":     "Internet Archive CDX",
     "commoncrawl": "Common Crawl Index",
-    "bufferover": "BufferOver DNS",
-    "leaklookup": "Leak-Lookup",
-    "breachdir": "BreachDirectory",
+    "bufferover":  "BufferOver DNS",
+    "greynoise":   "GreyNoise Community",
+    "otx":         "AlienVault OTX",
+    "psbdmp":      "psbdmp Pastebin Search",
+    "leaklookup":  "Leak-Lookup",
+    "breachdir":   "BreachDirectory",
 }
 
 
@@ -579,7 +583,113 @@ async def _check_hackertarget(domain: str) -> list:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SOURCE 13: Optional paid sources (only if API keys configured)
+# SOURCE 14: GreyNoise Community API — Free, no API key required
+# Classifies IPs as benign/malicious scanner, bot, or unknown
+# ─────────────────────────────────────────────────────────────────────────────
+async def _check_greynoise(domain: str) -> list:
+    mentions = []
+    try:
+        ip = socket.gethostbyname(domain)
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(
+                f"https://api.greynoise.io/v3/community/{ip}",
+                headers={**HEADERS, "Accept": "application/json"}
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("noise") or data.get("riot") is False:
+                    classification = data.get("classification", "unknown")
+                    name = data.get("name", "Unknown actor")
+                    link = data.get("link", f"https://viz.greynoise.io/ip/{ip}")
+                    severity = "critical" if classification == "malicious" else "medium"
+                    mentions.append({
+                        "id": f"gn-{sha256(ip.encode()).hexdigest()[:8]}",
+                        "title": f"GreyNoise: IP {ip} — {classification.upper()} ({name})",
+                        "snippet": f"This IP is classified as {classification} by GreyNoise. It has been seen actively scanning the internet.",
+                        "onion_site": "greynoise.io",
+                        "severity": severity,
+                        "url": link,
+                        "source_icon": "📡"
+                    })
+    except Exception as e:
+        logger.warning(f"GreyNoise check failed: {e}")
+    return mentions
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SOURCE 15: AlienVault OTX — Free public domain/IP threat intel (no key)
+# Returns pulses, malware families, and threat classifications
+# ─────────────────────────────────────────────────────────────────────────────
+async def _check_otx(keyword: str, is_email: bool = False) -> list:
+    mentions = []
+    try:
+        # Determine indicator type
+        if is_email:
+            return mentions  # OTX doesn't index emails directly
+        try:
+            socket.inet_aton(keyword)
+            itype = "IPv4"
+        except socket.error:
+            itype = "domain"
+
+        async with httpx.AsyncClient(timeout=12, follow_redirects=True) as client:
+            url = f"https://otx.alienvault.com/api/v1/indicators/{itype}/{keyword}/general"
+            r = await client.get(url, headers=HEADERS)
+            if r.status_code == 200:
+                data = r.json()
+                pulse_count = data.get("pulse_info", {}).get("count", 0)
+                if pulse_count > 0:
+                    pulses = data.get("pulse_info", {}).get("pulses", [])[:3]
+                    families = list({p.get("name", "") for p in pulses if p.get("name")})[:5]
+                    mentions.append({
+                        "id": f"otx-{sha256(keyword.encode()).hexdigest()[:8]}",
+                        "title": f"AlienVault OTX: {pulse_count} threat pulse(s) for {keyword}",
+                        "snippet": f"Threat families: {', '.join(families) or 'Unknown'}. Found in {pulse_count} OTX threat intelligence pulses.",
+                        "onion_site": "otx.alienvault.com",
+                        "severity": "high" if pulse_count >= 5 else "medium",
+                        "url": f"https://otx.alienvault.com/indicator/{itype.lower()}/{keyword}",
+                        "source_icon": "🛸"
+                    })
+    except Exception as e:
+        logger.warning(f"AlienVault OTX check failed: {e}")
+    return mentions
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SOURCE 16: psbdmp.ws — Pastebin Dump Search (Free, no key)
+# Searches public pastebin dumps for domain/email mentions
+# ─────────────────────────────────────────────────────────────────────────────
+async def _check_psbdmp(keyword: str) -> list:
+    mentions = []
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            r = await client.get(
+                f"https://psbdmp.ws/api/v3/search/{keyword}",
+                headers=HEADERS
+            )
+            if r.status_code == 200:
+                data = r.json()
+                items = data if isinstance(data, list) else data.get("data", [])
+                for item in items[:6]:
+                    pid = item.get("id", "")
+                    tags = item.get("tags", [])
+                    added = item.get("time", "")[:10] if item.get("time") else "Unknown"
+                    mentions.append({
+                        "id": f"pb-{sha256(str(pid).encode()).hexdigest()[:8]}",
+                        "title": f"Pastebin Dump: '{keyword}' found in public paste",
+                        "snippet": f"Paste ID: {pid} | Tags: {', '.join(tags) if tags else 'none'} | Posted: {added}",
+                        "onion_site": "psbdmp.ws / pastebin.com",
+                        "severity": "high",
+                        "url": f"https://pastebin.com/{pid}",
+                        "source_icon": "📋"
+                    })
+    except Exception as e:
+        logger.warning(f"psbdmp search failed: {e}")
+    return mentions
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SOURCE 17: Optional paid sources (only if API keys configured)
 # ─────────────────────────────────────────────────────────────────────────────
 async def _check_threatminer(domain: str) -> list:
     mentions = []
@@ -797,20 +907,23 @@ async def scan_darkweb(
     if is_domain:
         tasks.append(("hibp_domain", _hibp_domain_breach_check(keyword)))
         tasks.append(("urlscan", _check_urlscan(keyword)))
-        tasks.append(("urlhaus", _check_urlhaus(keyword)))
-        tasks.append(("threatfox", _check_threatfox(keyword)))
-        tasks.append(("openphish", _check_openphish(keyword)))
-        tasks.append(("shodan", _check_shodan_ip(keyword)))
-        tasks.append(("intelx", _check_intelx(keyword)))
-        tasks.append(("leakcheck", _check_leakcheck_public(keyword)))
-        tasks.append(("crtsh", _check_crt_sh(keyword)))
-        tasks.append(("hackertarget", _check_hackertarget(keyword)))
+        tasks.append(("urlhaus",     _check_urlhaus(keyword)))
+        tasks.append(("threatfox",   _check_threatfox(keyword)))
+        tasks.append(("openphish",   _check_openphish(keyword)))
+        tasks.append(("shodan",      _check_shodan_ip(keyword)))
+        tasks.append(("intelx",      _check_intelx(keyword)))
+        tasks.append(("leakcheck",   _check_leakcheck_public(keyword)))
+        tasks.append(("crtsh",       _check_crt_sh(keyword)))
+        tasks.append(("hackertarget",_check_hackertarget(keyword)))
         tasks.append(("threatminer", _check_threatminer(keyword)))
-        tasks.append(("wayback", _check_wayback_exposure(keyword)))
+        tasks.append(("wayback",     _check_wayback_exposure(keyword)))
         tasks.append(("commoncrawl", _check_commoncrawl(keyword)))
-        tasks.append(("bufferover", _check_bufferover_dns(keyword)))
-        tasks.append(("leaklookup", _check_leaklookup(keyword)))
-        tasks.append(("breachdir", _check_breachdirectory(keyword)))
+        tasks.append(("bufferover",  _check_bufferover_dns(keyword)))
+        tasks.append(("greynoise",   _check_greynoise(keyword)))
+        tasks.append(("otx",         _check_otx(keyword, is_email=False)))
+        tasks.append(("psbdmp",      _check_psbdmp(keyword)))
+        tasks.append(("leaklookup",  _check_leaklookup(keyword)))
+        tasks.append(("breachdir",   _check_breachdirectory(keyword)))
 
     if is_password:
         tasks.append(("hibp_pass", _check_hibp_password(keyword)))
@@ -911,12 +1024,23 @@ async def scan_darkweb(
             sources_checked.append("HackerTarget")
             mentions.extend(ht_mentions)
 
-    for key in ("threatminer", "wayback", "commoncrawl", "bufferover"):
+    for key in ("threatminer", "wayback", "commoncrawl", "bufferover",
+                 "greynoise", "otx", "psbdmp"):
         if key in result_map and not isinstance(result_map[key], Exception):
             extra_mentions = result_map[key]
             if extra_mentions:
                 sources_checked.append(SOURCE_LABELS.get(key, key))
                 mentions.extend(extra_mentions)
+
+    # ── Process psbdmp for emails too ────────────────────────────────────────
+    if is_email and "psbdmp" not in dict(tasks):
+        try:
+            pb_leaks = await _check_psbdmp(keyword)
+            if pb_leaks:
+                sources_checked.append("psbdmp Pastebin Search")
+                mentions.extend(pb_leaks)
+        except Exception:
+            pass
 
     # ── Process Shodan ───────────────────────────────────────────────────────
     if "shodan" in result_map and result_map["shodan"] and not isinstance(result_map["shodan"], Exception):

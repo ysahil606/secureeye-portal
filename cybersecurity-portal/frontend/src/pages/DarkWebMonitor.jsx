@@ -34,6 +34,50 @@ const SOURCE_ICON = {
   '🔭': <Cpu className="w-3.5 h-3.5" />,
   '🗄️': <Database className="w-3.5 h-3.5" />,
   '🔴': <ShieldAlert className="w-3.5 h-3.5" />,
+  '🌐': <Globe className="w-3.5 h-3.5" />,
+  '📡': <Wifi className="w-3.5 h-3.5" />,
+  '📋': <Database className="w-3.5 h-3.5" />,
+}
+
+// ── Data class chip config ─────────────────────────────────────────────────────
+const DATA_CLASS_META = {
+  'Passwords':              { icon: '🔑', cls: 'bg-red-500/15 border-red-500/30 text-red-400' },
+  'Email addresses':        { icon: '📧', cls: 'bg-blue-500/15 border-blue-500/30 text-blue-400' },
+  'Phone numbers':          { icon: '📱', cls: 'bg-green-500/15 border-green-500/30 text-green-400' },
+  'Names':                  { icon: '👤', cls: 'bg-slate-600/40 border-slate-600/50 text-slate-300' },
+  'Usernames':              { icon: '🎭', cls: 'bg-purple-500/15 border-purple-500/30 text-purple-400' },
+  'Physical addresses':     { icon: '📍', cls: 'bg-orange-500/15 border-orange-500/30 text-orange-400' },
+  'Geographic locations':   { icon: '🌍', cls: 'bg-orange-500/15 border-orange-500/30 text-orange-400' },
+  'Dates of birth':         { icon: '🎂', cls: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400' },
+  'IP addresses':           { icon: '🌐', cls: 'bg-cyan-500/15 border-cyan-500/30 text-cyan-400' },
+  'Credit cards':           { icon: '💳', cls: 'bg-red-500/20 border-red-500/40 text-red-300 font-black' },
+  'Social security numbers':{ icon: '🇺🇸', cls: 'bg-red-500/20 border-red-500/40 text-red-300 font-black' },
+  'Auth tokens':            { icon: '🔐', cls: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400' },
+  'Social media profiles':  { icon: '🔗', cls: 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400' },
+  'Gender':                 { icon: '♀', cls: 'bg-slate-600/40 border-slate-600/50 text-slate-400' },
+  'Employers':              { icon: '🏢', cls: 'bg-slate-600/40 border-slate-600/50 text-slate-400' },
+  'Job titles':             { icon: '💼', cls: 'bg-slate-600/40 border-slate-600/50 text-slate-400' },
+}
+
+function DataClassChips({ classes = [], max = 4 }) {
+  if (!classes || classes.length === 0) return <span className="text-xs text-slate-600">—</span>
+  const shown = classes.slice(0, max)
+  const extra = classes.length - max
+  return (
+    <div className="flex flex-wrap gap-1">
+      {shown.map(c => {
+        const m = DATA_CLASS_META[c] || { icon: '📄', cls: 'bg-slate-700/60 border-slate-600/50 text-slate-400' }
+        return (
+          <span key={c} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${m.cls}`}>
+            <span>{m.icon}</span>{c}
+          </span>
+        )
+      })}
+      {extra > 0 && (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-slate-700 bg-slate-800 text-slate-500">+{extra} more</span>
+      )}
+    </div>
+  )
 }
 
 function SeverityBadge({ severity }) {
@@ -68,39 +112,57 @@ function LeakRow({ leak, resolved, onResolve, onSelect }) {
   return (
     <tr
       className={clsx('group transition-colors cursor-pointer border-b border-slate-800/60',
-        isResolved ? 'opacity-50' : 'hover:bg-white/[0.02]'
+        isResolved ? 'opacity-40' : 'hover:bg-white/[0.025]'
       )}
       onClick={() => onSelect(leak)}
     >
+      {/* Resolved checkbox */}
       <td className="p-3 pl-4 w-8">
         <div className="w-4 h-4 rounded border border-slate-700 group-hover:border-purple-500/60 mx-auto flex items-center justify-center transition-colors">
           {isResolved && <CheckCircle2 className="w-3 h-3 text-green-400" />}
         </div>
       </td>
-      <td className="p-3 max-w-[180px]">
-        <div className="flex items-center gap-2">
-          <Globe className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-          <span className="text-xs text-slate-400 truncate font-mono">{leak.source || 'Unknown Source'}</span>
+
+      {/* Source */}
+      <td className="p-3 max-w-[160px]">
+        <div className="flex items-center gap-1.5">
+          <Globe className="w-3 h-3 text-slate-600 shrink-0" />
+          <span className="text-[11px] text-slate-400 truncate font-mono">{leak.source || 'Unknown'}</span>
         </div>
       </td>
+
+      {/* Identity */}
       <td className="p-3">
         <div className="flex items-center gap-1.5">
-          {leak.has_password && <Lock className="w-3 h-3 text-red-400 shrink-0" />}
-          <span className="font-mono text-sm text-white font-semibold truncate max-w-[200px]">{leak.email}</span>
+          {leak.has_password && <Lock className="w-3 h-3 text-red-400 shrink-0" title="Password in breach" />}
+          <span className="font-mono text-sm text-white font-semibold truncate max-w-[180px]">{leak.email}</span>
         </div>
+        {leak.breach_size > 0 && (
+          <div className="text-[10px] text-slate-600 mt-0.5 font-mono">{leak.breach_size.toLocaleString()} records</div>
+        )}
       </td>
+
+      {/* Data leaked — the KEY column */}
+      <td className="p-3">
+        <DataClassChips classes={leak.data_classes} max={3} />
+      </td>
+
+      {/* Severity */}
       <td className="p-3">
         <SeverityBadge severity={leak.severity} />
       </td>
-      <td className="p-3 text-xs text-slate-500 font-mono">{leak.date || '—'}</td>
-      <td className="p-3 text-xs text-slate-400 max-w-[200px] truncate">{leak.hint || '—'}</td>
+
+      {/* Date */}
+      <td className="p-3 text-[11px] text-slate-500 font-mono whitespace-nowrap">{leak.date || '—'}</td>
+
+      {/* Action */}
       <td className="p-3 pr-4">
         <button
           onClick={e => { e.stopPropagation(); onResolve(leak) }}
           disabled={isResolved}
-          className="text-[10px] font-bold text-slate-500 hover:text-green-400 transition-colors uppercase tracking-wider disabled:opacity-30"
+          className="text-[10px] font-bold text-slate-600 hover:text-green-400 transition-colors uppercase tracking-wider disabled:opacity-30"
         >
-          {isResolved ? 'Resolved' : 'Resolve'}
+          {isResolved ? '✓ Done' : 'Resolve'}
         </button>
       </td>
     </tr>
@@ -515,7 +577,7 @@ export default function DarkWebMonitor() {
             <h3 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 tracking-widest uppercase animate-pulse mb-2">
               Deep Crawling Intelligence Networks
             </h3>
-            <p className="text-xs text-slate-500 font-mono">Querying: HIBP · URLScan · URLhaus · ThreatFox · Shodan · IntelX · LeakCheck · XposedOrNot · crt.sh · HackerTarget · OpenPhish · Wayback</p>
+            <p className="text-xs text-slate-500 font-mono">Querying: HIBP · URLScan · URLhaus · ThreatFox · Shodan · IntelX · LeakCheck · XposedOrNot · crt.sh · HackerTarget · OpenPhish · GreyNoise · AlienVault OTX · Pastebin · Wayback</p>
           </div>
         </div>
       )}
@@ -608,10 +670,10 @@ export default function DarkWebMonitor() {
                       <tr className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                         <th className="p-3 pl-4 w-8"></th>
                         <th className="p-3">Source</th>
-                        <th className="p-3">Identity</th>
+                        <th className="p-3">Identity / Account</th>
+                        <th className="p-3">Data Leaked</th>
                         <th className="p-3">Severity</th>
                         <th className="p-3">Date</th>
-                        <th className="p-3">Details</th>
                         <th className="p-3 pr-4"></th>
                       </tr>
                     </thead>

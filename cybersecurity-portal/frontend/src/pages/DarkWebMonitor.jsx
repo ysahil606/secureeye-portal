@@ -1,456 +1,749 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import {
   Activity, AlertTriangle, CheckCircle2, Copy, Database, Download, Eye,
-  ExternalLink, Ghost, Globe, Loader2, Lock, Mail, Plus, Search, ShieldCheck, ShieldAlert, Trash2, X
+  ExternalLink, Ghost, Globe, Loader2, Lock, Mail, Plus, Search,
+  ShieldCheck, ShieldAlert, Shield, Trash2, X, Server, Wifi, Key,
+  BarChart3, Fingerprint, Clock, Terminal, ChevronDown, ChevronRight,
+  AlertCircle, Info, Cpu
 } from 'lucide-react'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 
+// ── helpers ─────────────────────────────────────────────────────────────────
+const SEVERITY_META = {
+  critical: { label: 'Critical', cls: 'text-red-400 bg-red-500/10 border-red-500/25' },
+  high:     { label: 'High',     cls: 'text-orange-400 bg-orange-500/10 border-orange-500/25' },
+  medium:   { label: 'Medium',   cls: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/25' },
+  low:      { label: 'Low',      cls: 'text-green-400  bg-green-500/10  border-green-500/25' },
+}
+
+const EXPOSURE_META = {
+  Critical: { color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/30',    bar: 'bg-red-500',    label: 'CRITICAL EXPOSURE' },
+  Elevated: { color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/30', bar: 'bg-orange-500', label: 'ELEVATED EXPOSURE' },
+  Watch:    { color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', bar: 'bg-yellow-500', label: 'WATCHLIST' },
+  Low:      { color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/30',  bar: 'bg-green-500',  label: 'LOW EXPOSURE' },
+}
+
+const SOURCE_ICON = {
+  '🔍': <Search className="w-3.5 h-3.5" />,
+  '🦠': <AlertTriangle className="w-3.5 h-3.5" />,
+  '🎯': <Fingerprint className="w-3.5 h-3.5" />,
+  '🎣': <AlertCircle className="w-3.5 h-3.5" />,
+  '🔐': <Lock className="w-3.5 h-3.5" />,
+  '🔭': <Cpu className="w-3.5 h-3.5" />,
+  '🗄️': <Database className="w-3.5 h-3.5" />,
+  '🔴': <ShieldAlert className="w-3.5 h-3.5" />,
+}
+
+function SeverityBadge({ severity }) {
+  const m = SEVERITY_META[severity] || SEVERITY_META.medium
+  return (
+    <span className={clsx('inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border', m.cls)}>
+      {m.label}
+    </span>
+  )
+}
+
+// ── Stat card ─────────────────────────────────────────────────────────────────
+function StatCard({ icon: Icon, label, value, sub, color = 'text-white', accent = 'purple' }) {
+  const glowMap = { red: 'hover:border-red-500/30', orange: 'hover:border-orange-500/30', purple: 'hover:border-purple-500/30', green: 'hover:border-green-500/30', blue: 'hover:border-blue-500/30' }
+  return (
+    <div className={clsx('relative rounded-2xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-sm transition-all', glowMap[accent])}>
+      <div className="flex items-start justify-between mb-3">
+        <div className="p-2 rounded-xl bg-slate-800 border border-slate-700">
+          <Icon className={clsx('w-4 h-4', color)} />
+        </div>
+        {sub && <span className="text-[10px] text-slate-600 font-mono uppercase">{sub}</span>}
+      </div>
+      <div className={clsx('text-3xl font-black tabular-nums mb-0.5', color)}>{value ?? '—'}</div>
+      <div className="text-xs text-slate-500 font-bold uppercase tracking-widest">{label}</div>
+    </div>
+  )
+}
+
+// ── Leak row ─────────────────────────────────────────────────────────────────
+function LeakRow({ leak, resolved, onResolve, onSelect }) {
+  const isResolved = resolved.includes(leak.id || leak.email)
+  return (
+    <tr
+      className={clsx('group transition-colors cursor-pointer border-b border-slate-800/60',
+        isResolved ? 'opacity-50' : 'hover:bg-white/[0.02]'
+      )}
+      onClick={() => onSelect(leak)}
+    >
+      <td className="p-3 pl-4 w-8">
+        <div className="w-4 h-4 rounded border border-slate-700 group-hover:border-purple-500/60 mx-auto flex items-center justify-center transition-colors">
+          {isResolved && <CheckCircle2 className="w-3 h-3 text-green-400" />}
+        </div>
+      </td>
+      <td className="p-3 max-w-[180px]">
+        <div className="flex items-center gap-2">
+          <Globe className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+          <span className="text-xs text-slate-400 truncate font-mono">{leak.source || 'Unknown Source'}</span>
+        </div>
+      </td>
+      <td className="p-3">
+        <div className="flex items-center gap-1.5">
+          {leak.has_password && <Lock className="w-3 h-3 text-red-400 shrink-0" />}
+          <span className="font-mono text-sm text-white font-semibold truncate max-w-[200px]">{leak.email}</span>
+        </div>
+      </td>
+      <td className="p-3">
+        <SeverityBadge severity={leak.severity} />
+      </td>
+      <td className="p-3 text-xs text-slate-500 font-mono">{leak.date || '—'}</td>
+      <td className="p-3 text-xs text-slate-400 max-w-[200px] truncate">{leak.hint || '—'}</td>
+      <td className="p-3 pr-4">
+        <button
+          onClick={e => { e.stopPropagation(); onResolve(leak) }}
+          disabled={isResolved}
+          className="text-[10px] font-bold text-slate-500 hover:text-green-400 transition-colors uppercase tracking-wider disabled:opacity-30"
+        >
+          {isResolved ? 'Resolved' : 'Resolve'}
+        </button>
+      </td>
+    </tr>
+  )
+}
+
+// ── Mention card ──────────────────────────────────────────────────────────────
+function MentionCard({ mention }) {
+  const meta = SEVERITY_META[mention.severity] || SEVERITY_META.medium
+  const icon = SOURCE_ICON[mention.source_icon] || <AlertTriangle className="w-3.5 h-3.5" />
+  return (
+    <div className={clsx('rounded-xl border p-4 transition-all hover:bg-white/[0.02]',
+      mention.severity === 'critical' ? 'border-red-500/20 bg-red-950/10' :
+      mention.severity === 'high'     ? 'border-orange-500/20 bg-orange-950/10' :
+                                        'border-slate-800 bg-slate-900/40'
+    )}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={clsx('p-1 rounded', meta.cls)}>{icon}</span>
+            <span className="text-sm text-white font-semibold leading-snug truncate">{mention.title}</span>
+            <SeverityBadge severity={mention.severity} />
+          </div>
+          {mention.snippet && (
+            <p className="text-xs text-slate-400 leading-5 italic mt-1 line-clamp-2">"{mention.snippet}"</p>
+          )}
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-[10px] font-mono text-slate-600 uppercase">{mention.onion_site}</span>
+          </div>
+        </div>
+        {mention.url && (
+          <a
+            href={mention.url}
+            target="_blank"
+            rel="noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="flex items-center gap-1 text-[10px] font-bold text-purple-400 hover:text-white bg-purple-500/10 hover:bg-purple-500/20 px-2.5 py-1.5 rounded-lg border border-purple-500/20 transition-all uppercase tracking-widest shrink-0"
+          >
+            <ExternalLink className="w-3 h-3" /> View
+          </a>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Source health grid ────────────────────────────────────────────────────────
+function SourceHealthGrid({ sourceHealth, sourcesChecked }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+      {Object.entries(sourceHealth || {}).map(([name, meta]) => (
+        <div key={name} className={clsx(
+          'rounded-lg border p-3 flex items-start gap-2',
+          meta.status === 'error'   ? 'border-red-500/20 bg-red-950/10' :
+          meta.records > 0          ? 'border-green-500/20 bg-green-950/10' :
+                                      'border-slate-800 bg-slate-900/40'
+        )}>
+          <span className={clsx('mt-0.5 shrink-0',
+            meta.status === 'error'   ? 'text-red-400' :
+            meta.records > 0          ? 'text-green-400' : 'text-slate-600'
+          )}>
+            {meta.status === 'error' ? <AlertCircle className="w-3.5 h-3.5" /> :
+             meta.records > 0        ? <CheckCircle2 className="w-3.5 h-3.5" /> :
+                                       <ShieldCheck className="w-3.5 h-3.5" />}
+          </span>
+          <div className="min-w-0">
+            <div className="text-xs text-slate-300 font-semibold truncate">{name}</div>
+            <div className={clsx('text-[10px] font-mono',
+              meta.status === 'error' ? 'text-red-400' :
+              meta.records > 0        ? 'text-green-400' : 'text-slate-600'
+            )}>
+              {meta.status === 'error' ? 'Timed out' : meta.records > 0 ? `${meta.records} finding${meta.records !== 1 ? 's' : ''}` : 'Clean'}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Shodan panel ──────────────────────────────────────────────────────────────
+function ShodanPanel({ intel }) {
+  if (!intel) return null
+  return (
+    <div className="rounded-xl border border-blue-500/20 bg-blue-950/10 p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Cpu className="w-4 h-4 text-blue-400" />
+        <span className="text-sm font-bold text-blue-300 uppercase tracking-widest">Shodan InternetDB — {intel.ip}</span>
+        <a href={`https://www.shodan.io/host/${intel.ip}`} target="_blank" rel="noreferrer"
+          className="ml-auto flex items-center gap-1 text-[10px] font-bold text-blue-400 hover:text-white transition uppercase tracking-wider">
+          View <ExternalLink className="w-3 h-3" />
+        </a>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-3">
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Open Ports</div>
+          <div className="flex flex-wrap gap-1">
+            {(intel.ports || []).slice(0, 8).map(p => (
+              <span key={p} className="text-[10px] font-mono bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded px-1.5 py-0.5">{p}</span>
+            ))}
+            {!intel.ports?.length && <span className="text-xs text-slate-600">None</span>}
+          </div>
+        </div>
+        <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-3">
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">CVEs Detected</div>
+          <div className="flex flex-wrap gap-1">
+            {(intel.vulns || []).slice(0, 6).map(v => (
+              <span key={v} className="text-[10px] font-mono bg-red-500/10 border border-red-500/20 text-red-300 rounded px-1.5 py-0.5">{v}</span>
+            ))}
+            {!intel.vulns?.length && <span className="text-xs text-slate-600">None</span>}
+          </div>
+        </div>
+        <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-3">
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Tags</div>
+          <div className="flex flex-wrap gap-1">
+            {(intel.tags || []).map(t => (
+              <span key={t} className="text-[10px] font-mono bg-slate-700 text-slate-300 rounded px-1.5 py-0.5">{t}</span>
+            ))}
+            {!intel.tags?.length && <span className="text-xs text-slate-600">None</span>}
+          </div>
+        </div>
+        <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-3">
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Hostnames</div>
+          <div className="space-y-0.5">
+            {(intel.hostnames || []).slice(0, 3).map(h => (
+              <div key={h} className="text-[10px] font-mono text-slate-400 truncate">{h}</div>
+            ))}
+            {!intel.hostnames?.length && <span className="text-xs text-slate-600">None</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Leak detail modal ─────────────────────────────────────────────────────────
+function LeakModal({ leak, onClose, onResolve, resolved }) {
+  const isResolved = resolved.includes(leak.id || leak.email)
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-2xl rounded-2xl border border-purple-500/25 bg-slate-950 shadow-2xl p-6 relative animate-in zoom-in-95 duration-200">
+        <button onClick={onClose} className="absolute top-4 right-4 p-1.5 text-slate-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+
+        <div className="flex items-center gap-3 border-b border-white/5 pb-4 mb-5 pr-10">
+          <div className="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center border border-purple-500/30">
+            <ShieldAlert className="w-5 h-5 text-purple-400" />
+          </div>
+          <div>
+            <div className="text-base font-bold text-white">{leak.source}</div>
+            <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+              <Clock className="w-3 h-3" /> Indexed: {leak.date || 'Unknown'}
+            </div>
+          </div>
+          <div className="ml-auto"><SeverityBadge severity={leak.severity} /></div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="rounded-xl bg-slate-900 border border-slate-800 p-4">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Identity / Account</div>
+            <div className="font-mono text-white text-sm break-all">{leak.email}</div>
+          </div>
+          <div className="rounded-xl bg-slate-900 border border-slate-800 p-4">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Status</div>
+            <div className={clsx('text-sm font-bold', isResolved ? 'text-green-400' : 'text-orange-400')}>
+              {isResolved ? '✓ Resolved' : '⚠ Open — Action Required'}
+            </div>
+          </div>
+        </div>
+
+        {leak.data_classes?.length > 0 && (
+          <div className="rounded-xl bg-slate-900 border border-slate-800 p-4 mb-4">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Leaked Data Classes</div>
+            <div className="flex flex-wrap gap-1.5">
+              {leak.data_classes.map(c => (
+                <span key={c} className={clsx(
+                  'px-2 py-0.5 rounded text-[10px] font-bold border',
+                  c === 'Passwords' ? 'bg-red-500/10 border-red-500/25 text-red-400' :
+                  c === 'Email addresses' ? 'bg-blue-500/10 border-blue-500/25 text-blue-400' :
+                  'bg-slate-800 border-slate-700 text-slate-400'
+                )}>{c}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-xl bg-slate-900 border border-slate-800 p-4 mb-5">
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Exposure Detail</div>
+          <p className="text-sm text-slate-300 leading-relaxed">
+            {leak.hint || 'Credential exposure confirmed. Raw data is redacted to prevent misuse.'}
+          </p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            {leak.has_password && (
+              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-red-500/10 border border-red-500/20 text-red-400 rounded text-[10px] font-bold">
+                <Lock className="w-3 h-3" /> Password in breach
+              </span>
+            )}
+            {leak.email && (
+              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded text-[10px] font-bold">
+                <Mail className="w-3 h-3" /> Identity exposed
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-5 py-2 rounded-lg border border-slate-700 text-slate-400 hover:text-white text-sm font-bold transition-colors">
+            Close
+          </button>
+          {!isResolved && (
+            <button
+              onClick={() => { onResolve(leak); onClose() }}
+              className="flex items-center gap-2 px-5 py-2 bg-green-500/15 hover:bg-green-500/25 border border-green-500/35 text-green-400 text-sm font-bold rounded-lg transition-colors"
+            >
+              <CheckCircle2 className="w-4 h-4" /> Mark Resolved
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Tabs config ───────────────────────────────────────────────────────────────
+const TABS = [
+  { id: 'leaks',    label: 'Credential Leaks', Icon: Key },
+  { id: 'mentions', label: 'Threat Mentions',  Icon: AlertTriangle },
+  { id: 'intel',    label: 'Host Intel',       Icon: Server },
+  { id: 'sources',  label: 'Source Status',    Icon: Activity },
+  { id: 'actions',  label: 'Remediation',      Icon: ShieldCheck },
+]
+
+// ── Main component ────────────────────────────────────────────────────────────
 export default function DarkWebMonitor() {
-  const [domain, setDomain] = useState('')
-  const [watchInput, setWatchInput] = useState('')
-  const [scanning, setScanning] = useState(false)
-  const [results, setResults] = useState(null)
-  const [activeTab, setActiveTab] = useState('leaks')
-  const [selectedLeak, setSelectedLeak] = useState(null)
+  const [query,       setQuery]       = useState('')
+  const [watchInput,  setWatchInput]  = useState('')
+  const [scanning,    setScanning]    = useState(false)
+  const [results,     setResults]     = useState(null)
+  const [tab,         setTab]         = useState('leaks')
+  const [selectedLeak,setSelectedLeak]= useState(null)
+  const [expandedIds, setExpandedIds] = useState(new Set())
+
   const [watchlist, setWatchlist] = useState(() => {
     try { return JSON.parse(localStorage.getItem('darkweb_watchlist') || '[]') } catch { return [] }
   })
-  const [resolvedLeaks, setResolvedLeaks] = useState(() => {
+  const [resolved, setResolved] = useState(() => {
     try { return JSON.parse(localStorage.getItem('darkweb_resolved') || '[]') } catch { return [] }
   })
 
-  const saveWatchlist = (next) => {
+  const saveWatchlist = useCallback(next => {
     setWatchlist(next)
     localStorage.setItem('darkweb_watchlist', JSON.stringify(next))
-  }
+  }, [])
 
-  const addWatchItem = (e) => {
-    e.preventDefault()
-    const item = watchInput.trim().replace(/^https?:\/\//i, '').split('/')[0].toLowerCase()
-    if (!item || watchlist.includes(item)) return
-    saveWatchlist([item, ...watchlist].slice(0, 12))
-    setWatchInput('')
-    toast.success('Watchlist updated')
-  }
-
-  const removeWatchItem = (item) => {
-    saveWatchlist(watchlist.filter(value => value !== item))
-  }
+  const saveResolved = useCallback(next => {
+    setResolved(next)
+    localStorage.setItem('darkweb_resolved', JSON.stringify(next))
+  }, [])
 
   const runScan = async (target) => {
-    const normalized = target.trim().replace(/^https?:\/\//i, '').split('/')[0].toLowerCase()
-    if (!normalized) return
-    setDomain(normalized)
+    const q = target.trim().replace(/^https?:\/\//i, '').split('/')[0].toLowerCase()
+    if (!q) return
+    setQuery(q)
     setScanning(true)
     setResults(null)
-
+    setTab('leaks')
     try {
-      const res = await api.get('/darkweb/scan', { params: { q: normalized } })
+      const res = await api.get('/darkweb/scan', { params: { q } })
       setResults(res.data)
-    } catch (error) {
+    } catch {
       toast.error('Dark web scan failed. Backend may be unavailable.')
     } finally {
       setScanning(false)
     }
   }
 
-  const handleScan = (e) => {
+  const addWatch = (e) => {
     e.preventDefault()
-    runScan(domain)
+    const item = watchInput.trim().replace(/^https?:\/\//i, '').split('/')[0].toLowerCase()
+    if (!item || watchlist.includes(item)) return
+    saveWatchlist([item, ...watchlist].slice(0, 12))
+    setWatchInput('')
+    toast.success('Added to watchlist')
   }
 
   const markResolved = (leak) => {
     const id = leak.id || leak.email
-    const next = [...new Set([...resolvedLeaks, id])]
-    setResolvedLeaks(next)
-    localStorage.setItem('darkweb_resolved', JSON.stringify(next))
-    toast.success('Marked resolved')
+    saveResolved([...new Set([...resolved, id])])
+    toast.success('Marked as resolved')
   }
 
   const copyEmails = async () => {
-    const emails = (results?.leaks || []).map(item => item.email).filter(Boolean).join('\n')
+    const emails = (results?.leaks || []).map(l => l.email).filter(Boolean).join('\n')
     if (!emails) return
     await navigator.clipboard.writeText(emails)
-    toast.success('Emails copied')
+    toast.success('Copied to clipboard')
   }
 
   const exportCsv = () => {
     if (!results) return
     const rows = [
-      ['type', 'value', 'source', 'date', 'severity', 'status'],
-      ...(results.leaks || []).map(item => ['leak', item.email, item.source, item.date, item.severity || '', resolvedLeaks.includes(item.id || item.email) ? 'resolved' : 'open']),
-      ...(results.mentions || []).map(item => ['mention', item.title, item.onion_site, '', item.severity || '', 'open']),
+      ['type','identity','source','date','severity','has_password','hint','status'],
+      ...(results.leaks || []).map(l => ['leak', l.email, l.source, l.date, l.severity, l.has_password, l.hint, resolved.includes(l.id || l.email) ? 'resolved' : 'open']),
+      ...(results.mentions || []).map(m => ['mention', m.title, m.onion_site, '', m.severity, '', m.snippet, 'open']),
     ]
-    const csv = rows.map(row => row.map(value => `"${String(value || '').replaceAll('"', '""')}"`).join(',')).join('\n')
-    const objectUrl = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    const csv = rows.map(r => r.map(v => `"${String(v || '').replaceAll('"', '""')}"`).join(',')).join('\n')
     const a = document.createElement('a')
-    a.href = objectUrl
-    a.download = `darkweb-${results.query || domain || 'scan'}.csv`
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = `darkweb-scan-${results.query || 'export'}.csv`
     a.click()
-    URL.revokeObjectURL(objectUrl)
   }
 
-  const leakCount = results?.leaks?.length || 0
-  const mentionCount = results?.mentions?.length || 0
-  const resolvedCount = (results?.leaks || []).filter(item => resolvedLeaks.includes(item.id || item.email)).length
+  const leakCount    = results?.leaks?.length ?? 0
+  const mentionCount = results?.mentions?.length ?? 0
+  const resolvedCount = (results?.leaks || []).filter(l => resolved.includes(l.id || l.email)).length
+  const exposure = EXPOSURE_META[results?.exposure_level] || EXPOSURE_META.Low
+  const summary = results?.exposure_summary || {}
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-4 border-b border-white/5">
-        <div className="relative">
-          <div className="absolute -inset-4 bg-purple-500/10 blur-2xl rounded-full" />
-          <h1 className="relative text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 flex items-center gap-4">
-            <div className="p-3 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl shadow-neon-purple text-white">
-              <Ghost className="w-8 h-8" />
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-5 border-b border-white/5">
+        <div>
+          <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-fuchsia-400 to-pink-400 flex items-center gap-3">
+            <div className="p-2.5 bg-gradient-to-br from-purple-600/80 to-pink-600/80 rounded-xl border border-purple-500/30 shadow-lg">
+              <Ghost className="w-6 h-6 text-white" />
             </div>
-            Dark Web Surveillance
+            Dark Web Monitor
           </h1>
-          <p className="relative text-slate-400 mt-2 text-sm max-w-xl leading-relaxed">
-            Real-time credential leak detection, hacker forum tracking, and exposure triage powered by SecureEye intelligence networks.
+          <p className="text-slate-500 text-sm mt-1.5 max-w-lg">
+            Real-time breach detection across 14+ intelligence sources. Enter a domain, email, or hash.
           </p>
         </div>
-      </div>
-
-      <div className="relative z-10 p-[2px] rounded-3xl bg-gradient-to-r from-purple-500/30 via-transparent to-pink-500/30">
-        <div className="bg-dark-900/90 backdrop-blur-2xl rounded-[22px] p-8 shadow-glass">
-          <form onSubmit={handleScan} className="flex flex-col md:flex-row gap-6 relative">
-            <div className="relative flex-1 group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200" />
-              <div className="relative flex items-center">
-                <Globe className="absolute left-6 w-6 h-6 text-purple-400 animate-pulse" />
-                <input
-                  type="text"
-                  placeholder="Target domain (e.g., target.com) or email address..."
-                  className="w-full bg-dark-950/80 border border-white/5 text-white rounded-2xl pl-16 pr-6 py-5 text-lg placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 shadow-inner transition-all"
-                  value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
-                  disabled={scanning}
-                />
-              </div>
-            </div>
-            <button
-              type="submit"
-              disabled={scanning || !domain.trim()}
-              className="md:w-auto w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white font-black px-10 py-5 rounded-2xl transition-all shadow-neon-purple flex items-center justify-center gap-3 text-lg uppercase tracking-wider group"
-            >
-              {scanning ? (
-                <Loader2 className="w-6 h-6 animate-spin" />
-              ) : (
-                <Search className="w-6 h-6 group-hover:scale-110 transition-transform" />
-              )}
-              Initiate Scan
+        {results && (
+          <div className="flex gap-2">
+            <button onClick={copyEmails} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 text-sm font-bold transition-all">
+              <Copy className="w-4 h-4" /> Copy IDs
             </button>
-          </form>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="card card-hover p-6 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-red-500/20 transition-all" />
-          <div className="text-sm font-bold text-slate-400 uppercase tracking-widest">Exposed Credentials</div>
-          <div className="mt-2 text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-red-400 to-rose-600">{leakCount}</div>
-        </div>
-        <div className="card card-hover p-6 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-purple-500/20 transition-all" />
-          <div className="text-sm font-bold text-slate-400 uppercase tracking-widest">Dark Web Mentions</div>
-          <div className="mt-2 text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-purple-400 to-fuchsia-600">{mentionCount}</div>
-        </div>
-        <div className="card card-hover p-6 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-green-500/20 transition-all" />
-          <div className="text-sm font-bold text-slate-400 uppercase tracking-widest">Resolved Leaks</div>
-          <div className="mt-2 text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-green-400 to-emerald-600">{resolvedCount}</div>
-        </div>
-      </div>
-
-      <div className="card p-5 space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-sm font-bold text-white">Domain watchlist</h2>
-          <form onSubmit={addWatchItem} className="flex gap-2">
-            <input className="input text-sm" placeholder="example.com" value={watchInput} onChange={e => setWatchInput(e.target.value)} />
-            <button className="btn-primary flex items-center gap-2 text-sm" type="submit"><Plus className="w-4 h-4" /> Add</button>
-          </form>
-        </div>
-        {watchlist.length === 0 ? (
-          <div className="text-sm text-slate-500">Add domains you want to re-check quickly.</div>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {watchlist.map(item => (
-              <div key={item} className="flex items-center gap-1 rounded-lg border border-dark-600 bg-dark-800 px-2 py-1">
-                <button onClick={() => runScan(item)} className="text-sm text-slate-300 hover:text-purple-300">{item}</button>
-                <button onClick={() => removeWatchItem(item)} className="text-slate-600 hover:text-red-400" title="Remove"><Trash2 className="w-3.5 h-3.5" /></button>
-              </div>
-            ))}
+            <button onClick={exportCsv} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 text-sm font-bold transition-all">
+              <Download className="w-4 h-4" /> Export CSV
+            </button>
           </div>
         )}
       </div>
 
-      {!results && !scanning && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-8">
-          {[
-            [Mail, 'Credential Dumps', 'Search for leaked employee emails and passwords in data breaches.'],
-            [Database, 'Paste Monitoring', 'Scan public repositories and paste sites for internal secrets.'],
-            [Eye, 'Forum Mentions', 'Detect discussions and listings targeting your organization.'],
-          ].map(([Icon, title, copy], idx) => (
-            <div key={title} className="group relative card p-8 border border-white/5 bg-gradient-to-b from-dark-800/40 to-transparent flex flex-col items-center text-center space-y-4 hover:border-purple-500/30 transition-all animate-fade-in-up" style={{ animationDelay: `${idx * 150}ms` }}>
-              <div className="absolute inset-0 bg-gradient-to-t from-purple-900/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl" />
-              <div className="w-16 h-16 bg-gradient-to-br from-dark-700 to-dark-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-neon-purple transition-all">
-                <Icon className="w-8 h-8 text-purple-400 group-hover:scale-110 transition-transform" />
+      {/* ── Search bar ─────────────────────────────────────────────────────── */}
+      <div className="relative">
+        <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-purple-500/20 via-transparent to-pink-500/20 blur-sm" />
+        <div className="relative rounded-2xl border border-slate-800 bg-slate-950/80 backdrop-blur-xl p-5">
+          <form onSubmit={e => { e.preventDefault(); runScan(query) }} className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Enter domain (corp.com), email (user@corp.com), or password hash..."
+                className="w-full bg-slate-900/60 border border-slate-700/60 text-white rounded-xl pl-12 pr-4 py-3.5 text-sm placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-purple-500/40 transition-all"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                disabled={scanning}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={scanning || !query.trim()}
+              className="sm:w-auto w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-40 text-white font-black px-7 py-3.5 rounded-xl transition-all text-sm uppercase tracking-widest"
+            >
+              {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              {scanning ? 'Scanning...' : 'Initiate Scan'}
+            </button>
+          </form>
+
+          {/* Watchlist */}
+          <div className="mt-4 pt-4 border-t border-white/5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mr-1">Watchlist:</span>
+              {watchlist.map(item => (
+                <div key={item} className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1">
+                  <button onClick={() => runScan(item)} className="text-xs text-slate-400 hover:text-purple-300 font-mono transition-colors">{item}</button>
+                  <button onClick={() => saveWatchlist(watchlist.filter(w => w !== item))} className="ml-1 text-slate-700 hover:text-red-400 transition-colors">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              <form onSubmit={addWatch} className="flex items-center gap-1.5">
+                <input
+                  className="text-xs bg-slate-900 border border-slate-800 text-white rounded-lg px-2.5 py-1 placeholder-slate-700 focus:outline-none focus:border-purple-500/40 w-32 transition-all"
+                  placeholder="add domain..."
+                  value={watchInput}
+                  onChange={e => setWatchInput(e.target.value)}
+                />
+                <button type="submit" className="text-[10px] font-bold text-purple-400 hover:text-white px-2 py-1 rounded border border-purple-500/30 hover:border-purple-400 transition-all uppercase">
+                  <Plus className="w-3 h-3" />
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Scanning state ─────────────────────────────────────────────────── */}
+      {scanning && (
+        <div className="py-24 flex flex-col items-center justify-center gap-8 animate-in zoom-in duration-500">
+          <div className="relative w-28 h-28">
+            <div className="absolute inset-0 bg-purple-500/10 blur-3xl rounded-full animate-pulse" />
+            <div className="w-28 h-28 border-[3px] border-slate-800 border-t-purple-500 rounded-full animate-spin" />
+            <div className="absolute inset-[10px] border-[2px] border-slate-800 border-b-pink-500 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.2s' }} />
+            <Ghost className="absolute inset-0 m-auto w-9 h-9 text-purple-400 animate-pulse" />
+          </div>
+          <div className="text-center">
+            <h3 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 tracking-widest uppercase animate-pulse mb-2">
+              Deep Crawling Intelligence Networks
+            </h3>
+            <p className="text-xs text-slate-500 font-mono">Querying: HIBP · URLScan · URLhaus · ThreatFox · Shodan · IntelX · LeakCheck · XposedOrNot · crt.sh · HackerTarget · OpenPhish · Wayback</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Results ─────────────────────────────────────────────────────────── */}
+      {results && !scanning && (
+        <div className="space-y-5 animate-in slide-in-from-bottom-4 duration-500">
+
+          {/* ── Exposure banner ──────────────────────────────────────────── */}
+          <div className={clsx('rounded-2xl border p-5', exposure.bg, exposure.border)}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className={clsx('p-2.5 rounded-xl border', exposure.bg, exposure.border)}>
+                  <ShieldAlert className={clsx('w-5 h-5', exposure.color)} />
+                </div>
+                <div>
+                  <div className={clsx('text-xs font-black uppercase tracking-widest', exposure.color)}>{exposure.label}</div>
+                  <div className="text-lg font-extrabold text-white">{results.query}</div>
+                </div>
               </div>
-              <h3 className="font-extrabold text-white text-lg">{title}</h3>
-              <p className="text-sm text-slate-400 leading-relaxed max-w-[200px]">{copy}</p>
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <Clock className="w-3.5 h-3.5" />
+                {results.scanned_at ? new Date(results.scanned_at).toLocaleString() : 'Scan complete'}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Stat grid ────────────────────────────────────────────────── */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <StatCard icon={Key}         label="Credential Leaks"    value={leakCount}                           color="text-red-400"    accent="red"    />
+            <StatCard icon={Lock}        label="With Passwords"      value={summary.password_exposure_count ?? 0} color="text-orange-400" accent="orange" />
+            <StatCard icon={Fingerprint} label="Unique Identities"   value={summary.exposed_identities ?? 0}     color="text-purple-400" accent="purple" />
+            <StatCard icon={AlertTriangle} label="Threat Mentions"   value={mentionCount}                        color="text-yellow-400" accent="orange" />
+            <StatCard icon={Server}      label="Host Signals"        value={summary.compromised_endpoint_signals ?? 0} color="text-blue-400" accent="blue" />
+            <StatCard icon={CheckCircle2} label="Resolved"           value={resolvedCount}                       color="text-green-400"  accent="green"  />
+          </div>
+
+          {/* Data classes */}
+          {summary.data_classes?.length > 0 && (
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Leaked Data Classes</div>
+              <div className="flex flex-wrap gap-1.5">
+                {summary.data_classes.map(c => (
+                  <span key={c} className={clsx(
+                    'px-2.5 py-0.5 rounded-full text-[10px] font-bold border',
+                    c === 'Passwords' ? 'bg-red-500/10 border-red-500/25 text-red-400' :
+                    'bg-slate-800 border-slate-700 text-slate-400'
+                  )}>{c}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Tabs ─────────────────────────────────────────────────────── */}
+          <div className="flex border-b border-slate-800 gap-1 overflow-x-auto">
+            {TABS.map(({ id, label, Icon }) => {
+              const count = id === 'leaks' ? leakCount : id === 'mentions' ? mentionCount : null
+              return (
+                <button
+                  key={id}
+                  onClick={() => setTab(id)}
+                  className={clsx(
+                    'flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all border-b-2 -mb-px',
+                    tab === id
+                      ? 'text-purple-400 border-purple-500'
+                      : 'text-slate-500 border-transparent hover:text-slate-300'
+                  )}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                  {count != null && count > 0 && (
+                    <span className={clsx('rounded-full px-1.5 text-[9px] font-black', tab === id ? 'bg-purple-500/20 text-purple-300' : 'bg-slate-800 text-slate-500')}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* ── Tab content ──────────────────────────────────────────────── */}
+          <div className="animate-in fade-in duration-300">
+
+            {/* Credential Leaks */}
+            {tab === 'leaks' && (
+              leakCount > 0 ? (
+                <div className="rounded-xl border border-slate-800 overflow-hidden">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-slate-800 bg-slate-900/80">
+                      <tr className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                        <th className="p-3 pl-4 w-8"></th>
+                        <th className="p-3">Source</th>
+                        <th className="p-3">Identity</th>
+                        <th className="p-3">Severity</th>
+                        <th className="p-3">Date</th>
+                        <th className="p-3">Details</th>
+                        <th className="p-3 pr-4"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {results.leaks.map((leak, i) => (
+                        <LeakRow key={leak.id || i} leak={leak} resolved={resolved} onResolve={markResolved} onSelect={setSelectedLeak} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="py-16 text-center rounded-2xl border border-green-500/15 bg-green-950/10">
+                  <ShieldCheck className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                  <h3 className="text-white font-bold mb-1">No Credential Leaks Found</h3>
+                  <p className="text-sm text-slate-500">Target is currently clean across all indexed breach sources.</p>
+                </div>
+              )
+            )}
+
+            {/* Threat Mentions */}
+            {tab === 'mentions' && (
+              mentionCount > 0 ? (
+                <div className="space-y-3">
+                  {results.mentions.map((m, i) => <MentionCard key={m.id || i} mention={m} />)}
+                </div>
+              ) : (
+                <div className="py-16 text-center rounded-2xl border border-slate-800 bg-slate-900/40">
+                  <Activity className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+                  <h3 className="text-white font-bold mb-1">No Threat Mentions</h3>
+                  <p className="text-sm text-slate-500">No malicious activity or forum mentions detected.</p>
+                </div>
+              )
+            )}
+
+            {/* Host Intel */}
+            {tab === 'intel' && (
+              <div className="space-y-4">
+                <ShodanPanel intel={results.shodan_intel} />
+                {results.reputation && (
+                  <div className="rounded-xl border border-blue-500/20 bg-blue-950/10 p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Mail className="w-4 h-4 text-blue-400" />
+                      <span className="text-sm font-bold text-blue-300 uppercase tracking-widest">EmailRep.io Reputation</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {Object.entries(results.reputation.details || {}).map(([key, val]) => (
+                        <div key={key} className="rounded-lg border border-slate-800 bg-slate-900/50 p-3">
+                          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">{key.replace(/_/g, ' ')}</div>
+                          <div className={clsx('text-sm font-bold', val === true ? 'text-red-400' : val === false ? 'text-green-400' : 'text-slate-300')}>
+                            {Array.isArray(val) ? val.join(', ') || 'None' : String(val)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!results.shodan_intel && !results.reputation && (
+                  <div className="py-16 text-center rounded-2xl border border-slate-800 bg-slate-900/40">
+                    <Server className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+                    <h3 className="text-white font-bold mb-1">No Host Intel</h3>
+                    <p className="text-sm text-slate-500">Scan a domain to see IP reputation and Shodan data.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Source Status */}
+            {tab === 'sources' && (
+              <div className="space-y-4">
+                <SourceHealthGrid sourceHealth={results.source_health} sourcesChecked={results.sources_checked} />
+                {results.premium_sources_skipped?.length > 0 && (
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-950/10 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Info className="w-4 h-4 text-amber-400" />
+                      <span className="text-sm font-bold text-amber-300">Premium Sources Skipped</span>
+                    </div>
+                    <p className="text-xs text-slate-400 mb-3">Add API keys to <code className="text-amber-300 bg-slate-900 px-1.5 py-0.5 rounded">backend/.env</code> to activate:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {results.premium_sources_skipped.map(s => (
+                        <span key={s} className="px-2.5 py-1 bg-amber-500/10 border border-amber-500/25 text-amber-400 rounded-full text-[10px] font-bold">{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Remediation */}
+            {tab === 'actions' && (
+              <div className="space-y-2">
+                {(results.recommendations || []).map((item, i) => (
+                  <div key={i} className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-green-400 mt-0.5" />
+                    <span className="text-sm text-slate-300">{item}</span>
+                  </div>
+                ))}
+                <div className="rounded-xl border border-purple-500/15 bg-purple-950/10 p-4 mt-3">
+                  <div className="flex items-start gap-3">
+                    <Info className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-slate-400 leading-5">{summary.note}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Empty state ──────────────────────────────────────────────────────── */}
+      {!results && !scanning && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-6">
+          {[
+            { Icon: Key,       title: 'Credential Leaks',  desc: 'Detect exposed emails, passwords, and account credentials across breach databases.', color: 'text-red-400',    glow: 'group-hover:shadow-red-500/10' },
+            { Icon: Terminal,  title: 'Threat Intelligence',desc: 'Scan URLhaus, ThreatFox, OpenPhish, and OSINT sources for active threats.', color: 'text-purple-400', glow: 'group-hover:shadow-purple-500/10' },
+            { Icon: Server,    title: 'Host Exposure',     desc: 'Interrogate Shodan InternetDB, crt.sh, and HackerTarget for infrastructure risks.', color: 'text-blue-400',   glow: 'group-hover:shadow-blue-500/10' },
+          ].map(({ Icon, title, desc, color, glow }) => (
+            <div key={title} className={clsx('group rounded-2xl border border-slate-800 bg-slate-900/50 p-7 flex flex-col items-center text-center gap-4 hover:border-slate-700 transition-all shadow-lg', glow)}>
+              <div className="w-14 h-14 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Icon className={clsx('w-7 h-7', color)} />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-white mb-1.5">{title}</h3>
+                <p className="text-xs text-slate-500 leading-5">{desc}</p>
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {scanning && (
-        <div className="py-32 flex flex-col items-center justify-center space-y-8 animate-in zoom-in duration-700">
-          <div className="relative">
-            <div className="absolute inset-0 bg-purple-500/20 blur-3xl rounded-full" />
-            <div className="w-32 h-32 border-[6px] border-dark-700 border-t-purple-500 rounded-full animate-spin shadow-neon-purple" />
-            <div className="absolute inset-0 m-auto w-24 h-24 border-[4px] border-dark-700 border-b-pink-500 rounded-full animate-radar-spin" style={{ animationDirection: 'reverse' }} />
-            <Ghost className="absolute inset-0 m-auto w-10 h-10 text-purple-400 animate-pulse" />
-          </div>
-          <div className="text-center space-y-2">
-            <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 tracking-[0.2em] uppercase animate-pulse">Deep Crawling Network...</h3>
-            <p className="text-sm text-slate-400 font-mono">Querying intelligence sources: HIBP, EmailRep, SecureDB</p>
-          </div>
-        </div>
-      )}
-
-      {results && (
-        <div className="space-y-6 animate-in slide-in-from-bottom-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dark-600 bg-dark-800/70 p-4">
-            <div>
-              <div className="text-sm font-bold text-white">{results.exposure_level || 'Watch'} exposure for {results.query || domain}</div>
-              <div className="text-xs text-slate-500">{results.scanned_at ? new Date(results.scanned_at).toLocaleString() : 'Scan complete'}</div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={copyEmails} className="btn-ghost flex items-center gap-2 text-sm"><Copy className="w-4 h-4" /> Copy emails</button>
-              <button onClick={exportCsv} className="btn-ghost flex items-center gap-2 text-sm"><Download className="w-4 h-4" /> Export CSV</button>
-            </div>
-          </div>
-
-          <div className="flex border-b border-dark-600 gap-6 overflow-x-auto">
-            <button onClick={() => setActiveTab('leaks')} className={clsx('pb-3 text-sm font-bold uppercase tracking-widest transition-all', activeTab === 'leaks' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-slate-500')}>Exposed Credentials ({leakCount})</button>
-            <button onClick={() => setActiveTab('mentions')} className={clsx('pb-3 text-sm font-bold uppercase tracking-widest transition-all', activeTab === 'mentions' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-slate-500')}>Mentions ({mentionCount})</button>
-            <button onClick={() => setActiveTab('osint')} className={clsx('pb-3 text-sm font-bold uppercase tracking-widest transition-all', activeTab === 'osint' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-slate-500')}>OSINT Engines</button>
-            <button onClick={() => setActiveTab('actions')} className={clsx('pb-3 text-sm font-bold uppercase tracking-widest transition-all', activeTab === 'actions' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-slate-500')}>Actions</button>
-          </div>
-
-          {activeTab === 'leaks' && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {leakCount > 0 ? (
-                <>
-                  <div className="overflow-x-auto rounded-xl border border-dark-600 bg-dark-800/50 backdrop-blur-sm shadow-xl mt-2">
-                    <table className="w-full text-left text-sm whitespace-nowrap">
-                      <thead className="bg-dark-700/80 text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-dark-600">
-                        <tr>
-                          <th className="p-4 w-8 text-center"></th>
-                          <th className="p-4">Source URL / Breach</th>
-                          <th className="p-4">Type</th>
-                          <th className="p-4">Email / Username</th>
-                          <th className="p-4">Details</th>
-                          <th className="p-4">Indexed At</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-dark-600/50">
-                        {results.leaks.map((leak, i) => {
-                          return (
-                            <tr 
-                              key={leak.id || i} 
-                              className="hover:bg-white/5 transition-colors group cursor-pointer"
-                              onClick={() => setSelectedLeak(leak)}
-                            >
-                              <td className="p-4 align-middle">
-                                <div className="w-4 h-4 rounded border border-slate-600 group-hover:border-purple-500 transition-colors mx-auto flex items-center justify-center">
-                                  {resolvedLeaks.includes(leak.id || leak.email) && <CheckCircle2 className="w-3 h-3 text-green-400" />}
-                                </div>
-                              </td>
-                              <td className="p-4 font-mono text-slate-300">
-                                <span className="flex items-center gap-2 hover:text-blue-400 cursor-pointer transition-colors"><Globe className="w-3.5 h-3.5 text-slate-500 group-hover:text-blue-400" /> {leak.source || 'Dark Web Dump'}</span>
-                              </td>
-                              <td className="p-4">
-                                <span className="px-2.5 py-1 rounded-full border border-green-500/30 text-green-400 text-[10px] font-bold tracking-widest uppercase bg-green-500/10">Email</span>
-                              </td>
-                              <td className="p-4 font-mono text-white font-bold">
-                                {leak.email}
-                              </td>
-                              <td className="p-4 text-slate-300">
-                                <span className="flex items-center gap-2"><ShieldAlert className="w-3.5 h-3.5 text-red-400" /> {leak.hint || 'Exposed in data breach'}</span>
-                              </td>
-                              <td className="p-4">
-                                <div className="flex flex-col items-start">
-                                  <div className="flex items-center gap-1.5 text-slate-300 text-xs"><Database className="w-3.5 h-3.5 text-slate-500" /> {leak.date}</div>
-                                  {leak.date !== "Unknown" && (
-                                    <span className="text-[9px] font-bold text-orange-400 mt-1 uppercase bg-orange-500/10 px-1.5 py-0.5 rounded">Recent</span>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              ) : (
-                <div className="py-12 text-center card bg-green-500/5 border-green-500/20">
-                  <ShieldCheck className="w-12 h-12 text-green-500 mx-auto mb-3" />
-                  <h3 className="text-white font-bold">No Leaked Credentials</h3>
-                  <p className="text-sm text-slate-500">Domain is currently clean across indexed signals.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'mentions' && (
-            <div className="grid grid-cols-1 gap-4">
-              {mentionCount > 0 ? results.mentions.map((mention, i) => (
-                <div key={mention.id || i} className="card p-5 border-l-4 border-l-purple-500 bg-purple-500/5 hover:bg-purple-500/10 transition-colors">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-2 flex-1">
-                      <div className="flex items-center gap-2"><Ghost className="w-4 h-4 text-purple-400" /><span className="text-white font-bold text-sm tracking-tight">{mention.title}</span></div>
-                      <p className="text-xs text-slate-400 leading-relaxed italic">"{mention.snippet}"</p>
-                      <div className="text-[10px] text-slate-600 font-mono uppercase font-bold">{mention.onion_site}</div>
-                    </div>
-                    <div className="flex flex-col items-end gap-3">
-                      <AlertTriangle className="w-5 h-5 text-purple-400 animate-pulse" />
-                      {mention.url && (
-                        <a href={mention.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-[10px] font-bold text-purple-400 hover:text-white bg-purple-500/10 hover:bg-purple-500/30 px-3 py-1.5 rounded-lg border border-purple-500/20 transition-all uppercase tracking-widest">
-                          <ExternalLink className="w-3.5 h-3.5" /> View Source
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )) : (
-                <div className="py-12 text-center card bg-dark-800/50">
-                  <Activity className="w-12 h-12 text-slate-700 mx-auto mb-3" />
-                  <h3 className="text-white font-bold">No Active Mentions</h3>
-                  <p className="text-sm text-slate-500">No organizational mentions found.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'osint' && (
-            <div className="space-y-4">
-              <div className="card p-5 bg-dark-800">
-                <h3 className="text-white font-bold mb-4 flex items-center gap-2"><Globe className="w-5 h-5 text-blue-400" /> Connected Open Sources</h3>
-                <div className="flex flex-wrap gap-2">
-                  {(results.sources_checked || []).map(src => (
-                    <span key={src} className="px-3 py-1 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-full text-xs font-bold">{src}</span>
-                  ))}
-                </div>
-              </div>
-              {(results.premium_sources_skipped || []).length > 0 && (
-                <div className="card p-5 bg-orange-500/5 border-orange-500/20">
-                  <h3 className="text-orange-400 font-bold mb-3 flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> Freemium Engines Skipped</h3>
-                  <p className="text-sm text-slate-400 mb-4">The following APIs were skipped. Register for a free account on their platform and add the API Key to <code className="text-orange-300">backend/.env</code> to activate them:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {results.premium_sources_skipped.map(src => (
-                      <span key={src} className="px-3 py-1 bg-orange-500/10 border border-orange-500/30 text-orange-400 rounded-full text-xs font-bold">{src}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'actions' && (
-            <div className="card p-5 space-y-3">
-              {(results.recommendations || []).map((item, index) => (
-                <div key={index} className="flex items-start gap-3 rounded-lg bg-dark-800 p-3 text-sm text-slate-300">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-400" />
-                  <span>{item}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
+      {/* ── Leak detail modal ──────────────────────────────────────────────── */}
       {selectedLeak && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-2xl bg-dark-900 border border-purple-500/30 rounded-2xl shadow-neon-purple p-6 relative flex flex-col gap-6 animate-in zoom-in-95 duration-200">
-            
-            <button 
-              onClick={() => setSelectedLeak(null)}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-4 border-b border-white/10 pb-4 pr-10">
-              <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center border border-purple-500/40">
-                <ShieldAlert className="w-6 h-6 text-purple-400" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-white leading-tight">{selectedLeak.source}</h2>
-                <div className="text-sm text-slate-400 flex items-center gap-2 mt-1">
-                  <Database className="w-3.5 h-3.5" /> 
-                  Indexed: {selectedLeak.date}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-dark-800 rounded-xl p-4 border border-dark-600">
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Target Identity</div>
-                <div className="font-mono text-white text-sm">{selectedLeak.email}</div>
-              </div>
-              <div className="bg-dark-800 rounded-xl p-4 border border-dark-600">
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Threat Level</div>
-                <div className="flex items-center gap-2">
-                  <span className={clsx(
-                    "px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-widest",
-                    selectedLeak.severity === 'critical' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                  )}>
-                    {selectedLeak.severity}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-dark-800 rounded-xl p-5 border border-dark-600">
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Exposed Information</div>
-              <p className="text-sm text-slate-300 leading-relaxed">
-                {selectedLeak.hint || "Raw breach data has been partially redacted to prevent abuse. General credential exposure is confirmed."}
-              </p>
-              
-              <div className="mt-4 flex flex-wrap gap-2">
-                {selectedLeak.has_password && (
-                  <span className="px-3 py-1.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-md text-xs font-bold font-mono flex items-center gap-2">
-                    <Lock className="w-3.5 h-3.5" /> Password Exposed
-                  </span>
-                )}
-                {selectedLeak.email && (
-                  <span className="px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-md text-xs font-bold font-mono flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5" /> Identity Exposed
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => setSelectedLeak(null)} className="btn-ghost px-6">Close</button>
-              {!resolvedLeaks.includes(selectedLeak.id || selectedLeak.email) && (
-                <button 
-                  onClick={() => {
-                    markResolved(selectedLeak);
-                    setSelectedLeak(null);
-                  }} 
-                  className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/40 font-bold px-6 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm"
-                >
-                  <CheckCircle2 className="w-4 h-4" /> Mark Resolved
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        <LeakModal leak={selectedLeak} onClose={() => setSelectedLeak(null)} onResolve={markResolved} resolved={resolved} />
       )}
     </div>
   )

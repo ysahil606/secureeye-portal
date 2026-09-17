@@ -21,11 +21,13 @@ from models import User, Sector, UserRole, Advisory, AdvisoryStatus, AdvisorySou
 from schemas import AdvisoryOut
 
 # Routes
-from routes import auth, advisories, dashboard, admin, collaboration, ai, reports, apt_router, war_room, sandbox, advanced, darkweb, cve_lookup, media, ticker, phishing
+from routes import auth, advisories, dashboard, admin, collaboration, ai, reports, apt_router, war_room, sandbox, advanced, darkweb, cve_lookup, media, ticker, phishing, threat_hunting
 from services import threat_feeds
 from services.media_scraper import fetch_media_sync
 from services.ticker_service import update_ticker_cache
 from services.auto_enricher import auto_enrich_priority_iocs
+from services.mitre_service import sync_mitre_attack_db
+from services.threat_hunter import generate_threat_hunting_hypotheses
 
 logging.basicConfig(
     level=logging.INFO,
@@ -191,6 +193,38 @@ async def lifespan(app: FastAPI):
         id="auto_enrich_24h",
         replace_existing=True,
     )
+
+    # Schedule daily MITRE ATT&CK sync (24h)
+    async def scheduled_mitre_sync():
+        db = SessionLocal()
+        try:
+            await sync_mitre_attack_db(db)
+        finally:
+            db.close()
+
+    scheduler.add_job(
+        scheduled_mitre_sync,
+        "interval",
+        hours=24,
+        id="mitre_sync_24h",
+        replace_existing=True,
+    )
+
+    # Schedule daily auto AI Threat Hunting Hypothesis Generation (24h)
+    async def scheduled_threat_hunt_gen():
+        db = SessionLocal()
+        try:
+            await generate_threat_hunting_hypotheses(db, sector="All Sectors", count=5)
+        finally:
+            db.close()
+
+    scheduler.add_job(
+        scheduled_threat_hunt_gen,
+        "interval",
+        hours=24,
+        id="threat_hunt_gen_24h",
+        replace_existing=True,
+    )
     
     scheduler.start()
     logger.info(f"Feed scheduler started — polling every {settings.FEED_POLL_INTERVAL_MINUTES} minutes")
@@ -272,6 +306,7 @@ app.include_router(cve_lookup.router, prefix="/api/cve")
 app.include_router(media.router, prefix="/api")
 app.include_router(ticker.router, prefix="/api")
 app.include_router(phishing.router, prefix="/api")
+app.include_router(threat_hunting.router, prefix="/api")
 
 
 @app.get("/api/health")

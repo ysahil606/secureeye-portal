@@ -229,3 +229,41 @@ class MediaItem(Base):
     media_type = Column(String, index=True)  # 'video', 'podcast', 'article'
     published_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MitreCache(Base):
+    __tablename__ = "mitre_cache"
+    id = Column(Integer, primary_key=True, index=True)
+    technique_id = Column(String, unique=True, index=True, nullable=False)  # e.g., T1059.001
+    name = Column(String, nullable=False)                                   # e.g., PowerShell
+    tactic = Column(String, index=True)                                      # e.g., Execution
+    description = Column(Text)
+    platforms = Column(JSON, default=[])                                    # ['Windows', 'Linux']
+    data_sources = Column(JSON, default=[])                                 # ['Process Execution', 'Script Execution']
+    detection_guidance = Column(Text)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class HuntHypothesis(Base):
+    __tablename__ = "hunt_hypotheses"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    hypothesis = Column(Text, nullable=False)
+    target_sector = Column(String, default="All Sectors", index=True)
+    severity = Column(String, default="medium", index=True)                # critical, high, medium, low
+    mitre_technique_id = Column(String, index=True)                         # e.g., T1059.001
+    mitre_tactic = Column(String, index=True)                               # e.g., Execution
+    mitre_name = Column(String)
+    data_sources = Column(JSON, default=[])                                 # ['Windows Event ID 4688', 'Sysmon Event ID 1']
+    investigation_steps = Column(JSON, default=[])                          # List of actionable steps
+    kql_query = Column(Text)
+    spl_query = Column(Text)
+    sigma_rule = Column(Text)
+    trigger_iocs = Column(JSON, default=[])                                 # List of related IOC values / CVE IDs
+    trigger_reason = Column(Text)
+    confidence_score = Column(Float, default=0.75)                          # 0.0 to 1.0
+    status = Column(String, default="open", index=True)                     # open, in_progress, confirmed, false_positive, archived
+    analyst_notes = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+

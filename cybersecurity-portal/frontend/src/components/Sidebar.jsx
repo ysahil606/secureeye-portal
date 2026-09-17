@@ -4,7 +4,7 @@ import {
   Shield, LayoutDashboard, FileText, Search,
   Bell, Users, Layers, Cpu, Clock, Bug,
   Network, LogOut, ChevronRight, Sparkles, X, Ghost, LifeBuoy, BrainCircuit, Settings as SettingsIcon, Tv, Globe,
-  ChevronDown, Flame, Fish
+  ChevronDown, Flame, Fish, Crosshair
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
@@ -39,6 +39,7 @@ const NAVIGATION_GROUPS = [
   {
     title: 'Analysis & Labs',
     items: [
+      { to: '/threat-hunting', icon: Crosshair, label: 'Threat Hunting', feature: 'advanced' },
       { to: '/deepscan', icon: Cpu, label: 'DeepScan Lab', feature: 'deepscan' },
       { to: '/cyber-weather', icon: Globe, label: 'Cyber Weather', feature: 'dashboard' },
       { to: '/advanced', icon: Sparkles, label: 'Advanced Center', feature: 'advanced' },

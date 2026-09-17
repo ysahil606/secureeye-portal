@@ -65,24 +65,42 @@ async def _try_groq(prompt: str, api_key: str, model: str = "llama-3.3-70b-versa
     """Groq — Free per key per model. Each model has its OWN separate rate limit bucket."""
     if not api_key:
         return None
-    try:
-        client = Groq(api_key=api_key)
-        resp = client.chat.completions.create(
-            messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": prompt}],
-            model=model,
-            temperature=0.2,
-            max_tokens=max_tokens,
-        )
-        text = resp.choices[0].message.content
-        if text and len(text.strip()) > 100:
-            logger.info(f"Groq [{model}]: SUCCESS")
-            return text.strip()
-    except Exception as e:
-        err = str(e)
-        if "rate_limit" in err.lower() or "429" in err:
-            logger.warning(f"Groq [{model}]: rate limit hit, rotating to next key/model")
-        else:
-            logger.warning(f"Groq [{model}] failed: {e}")
+
+    candidate_models = [
+        model,
+        "llama-3.1-8b-instant",
+        "llama-3.1-70b-versatile",
+        "deepseek-r1-distill-llama-70b",
+        "qwen-2.5-coder-32b",
+        "llama-3.3-70b-versatile"
+    ]
+    # Remove duplicates preserving order
+    candidate_models = list(dict.fromkeys(candidate_models))
+
+    for m in candidate_models:
+        try:
+            client = Groq(api_key=api_key)
+            resp = client.chat.completions.create(
+                messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": prompt}],
+                model=m,
+                temperature=0.2,
+                max_tokens=max_tokens,
+            )
+            text = resp.choices[0].message.content
+            if text and len(text.strip()) > 50:
+                logger.info(f"Groq [{m}]: SUCCESS")
+                return text.strip()
+        except Exception as e:
+            err = str(e)
+            if "invalid_api_key" in err or "401" in err:
+                logger.warning(f"Groq [{m}]: Invalid API key, skipping key.")
+                break
+            elif "rate_limit" in err.lower() or "429" in err:
+                logger.warning(f"Groq [{m}]: rate limit hit, trying next model or key")
+                continue
+            else:
+                logger.warning(f"Groq [{m}] failed: {e}")
+                continue
     return None
 
 async def _try_cerebras(prompt: str, max_tokens: int = 3000, sys_prompt: str = SYS_PROMPT) -> str | None:

@@ -51,13 +51,13 @@ class Settings(BaseSettings):
     # Groq Keys (get free keys at console.groq.com)
     # Each model has its own separate daily limit - mix models for max combined free quota!
     GROQ_API_KEY: str = "".join(["gsk_", "4dA5Fod3kGKJiAl", "qahZRWGdyb3FY", "XxZs175wMeVJrB2", "FAd7kiyAy"])
-    GROQ_MODEL_1: str = "llama-3.3-70b-versatile"   # Best quality model
+    GROQ_MODEL_1: str = "groq/compound"            # Best active compound model
     GROQ_API_KEY_2: str = "".join(["gsk_", "SCCb2pwY9HQMztel", "rDuaWGdyb3FYgni", "rzfybOBwHZDmxu1", "0ckUjA"])
-    GROQ_MODEL_2: str = "llama-3.3-70b-versatile"   # Same model, different account
+    GROQ_MODEL_2: str = "groq/compound-mini"       # Fast compound model
     GROQ_API_KEY_3: str = "".join(["gsk_", "qT4bOOGfpENmVQ8", "cXAkaWGdyb3FYBP", "CfdeqpwbMTRiLtm", "E0Oaewu"])
-    GROQ_MODEL_3: str = "llama-3.3-70b-versatile"   # Same model, different account
+    GROQ_MODEL_3: str = "qwen/qwen3.8-27b"         # High capability active model
     GROQ_API_KEY_4: str = ""           # Optional 4th Groq key
-    GROQ_MODEL_4: str = "llama-3.3-70b-versatile"   # Same model, different account
+    GROQ_MODEL_4: str = "openai/gpt-oss-120b"      # Backup active model
 
     CEREBRAS_API_KEY: str = ""         # Free: cloud.cerebras.ai (1,000 req/day)
     OPENROUTER_API_KEY: str = ""       # Free models: openrouter.ai

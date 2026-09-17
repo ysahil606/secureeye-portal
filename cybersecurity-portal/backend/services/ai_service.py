@@ -68,11 +68,11 @@ async def _try_groq(prompt: str, api_key: str, model: str = "llama-3.3-70b-versa
 
     candidate_models = [
         model,
-        "llama-3.1-8b-instant",
-        "llama-3.1-70b-versatile",
-        "deepseek-r1-distill-llama-70b",
-        "qwen-2.5-coder-32b",
-        "llama-3.3-70b-versatile"
+        "groq/compound",
+        "groq/compound-mini",
+        "qwen/qwen3.8-27b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b"
     ]
     # Remove duplicates preserving order
     candidate_models = list(dict.fromkeys(candidate_models))

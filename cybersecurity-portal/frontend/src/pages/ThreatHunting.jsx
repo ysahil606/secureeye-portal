@@ -5,6 +5,7 @@ import {
   AlertTriangle, BookOpen, UserCheck, ArrowUpRight, Cpu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import api from '../services/api';
 
 export default function ThreatHunting() {
   const [stats, setStats] = useState({
@@ -22,7 +23,7 @@ export default function ThreatHunting() {
   const [generating, setGenerating] = useState(false);
   const [syncingMitre, setSyncingMitre] = useState(false);
 
-  // Filters
+  // Filters - default statusFilter to empty '' so ALL hypotheses show up by default
   const [statusFilter, setStatusFilter] = useState('');
   const [sectorFilter, setSectorFilter] = useState('All Sectors');
   const [severityFilter, setSeverityFilter] = useState('');
@@ -40,17 +41,10 @@ export default function ThreatHunting() {
   const [targetSectorGen, setTargetSectorGen] = useState('All Sectors');
   const [genCount, setGenCount] = useState(5);
 
-  const token = localStorage.getItem('token');
-
   const fetchStats = async () => {
     try {
-      const res = await fetch('/api/threat-hunting/stats', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data);
-      }
+      const res = await api.get('/threat-hunting/stats');
+      setStats(res.data);
     } catch (e) {
       console.error('Failed to fetch threat hunting stats', e);
     }
@@ -59,18 +53,14 @@ export default function ThreatHunting() {
   const fetchHypotheses = async () => {
     setLoading(true);
     try {
-      let url = `/api/threat-hunting/hypotheses?sector=${encodeURIComponent(sectorFilter)}`;
-      if (statusFilter) url += `&status=${encodeURIComponent(statusFilter)}`;
-      if (severityFilter) url += `&severity=${encodeURIComponent(severityFilter)}`;
-      if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
+      const params = {};
+      if (sectorFilter && sectorFilter !== 'All Sectors') params.sector = sectorFilter;
+      if (statusFilter) params.status = statusFilter;
+      if (severityFilter) params.severity = severityFilter;
+      if (searchTerm) params.search = searchTerm;
 
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setHypotheses(data.hypotheses || []);
-      }
+      const res = await api.get('/threat-hunting/hypotheses', { params });
+      setHypotheses(res.data.hypotheses || []);
     } catch (e) {
       console.error('Failed to fetch hypotheses', e);
     } finally {
@@ -92,24 +82,16 @@ export default function ThreatHunting() {
     setGenerating(true);
     setShowGenModal(false);
     try {
-      const res = await fetch('/api/threat-hunting/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ sector: targetSectorGen, count: parseInt(genCount) })
+      const res = await api.post('/threat-hunting/generate', {
+        sector: targetSectorGen,
+        count: parseInt(genCount)
       });
-      if (res.ok) {
-        await fetchStats();
-        await fetchHypotheses();
-      } else {
-        const err = await res.json();
-        alert(`Generation Error: ${err.detail || 'Failed to generate hypotheses'}`);
-      }
+      await fetchStats();
+      await fetchHypotheses();
     } catch (e) {
       console.error('Error generating hypotheses', e);
-      alert('Network or server error during hypothesis generation.');
+      const errDetail = e.response?.data?.detail || 'Failed to generate hypotheses';
+      alert(`Generation Error: ${errDetail}`);
     } finally {
       setGenerating(false);
     }
@@ -118,15 +100,10 @@ export default function ThreatHunting() {
   const handleMitreSync = async () => {
     setSyncingMitre(true);
     try {
-      const res = await fetch('/api/threat-hunting/mitre/sync', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        alert(`MITRE Sync Complete! Added: ${data.added}, Updated: ${data.updated}`);
-        fetchStats();
-      }
+      const res = await api.post('/threat-hunting/mitre/sync');
+      const data = res.data;
+      alert(`MITRE Sync Complete! Added: ${data.added}, Updated: ${data.updated}`);
+      fetchStats();
     } catch (e) {
       console.error('Error syncing MITRE', e);
     } finally {
@@ -136,22 +113,13 @@ export default function ThreatHunting() {
 
   const handleUpdateStatus = async (id, newStatus) => {
     try {
-      const res = await fetch(`/api/threat-hunting/hypotheses/${id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setHypotheses(prev => prev.map(h => h.id === id ? updated : h));
-        if (selectedHypo && selectedHypo.id === id) {
-          setSelectedHypo(updated);
-        }
-        fetchStats();
+      const res = await api.patch(`/threat-hunting/hypotheses/${id}/status`, { status: newStatus });
+      const updated = res.data;
+      setHypotheses(prev => prev.map(h => h.id === id ? updated : h));
+      if (selectedHypo && selectedHypo.id === id) {
+        setSelectedHypo(updated);
       }
+      fetchStats();
     } catch (e) {
       console.error('Failed to update status', e);
     }
@@ -161,19 +129,13 @@ export default function ThreatHunting() {
     if (!selectedHypo) return;
     setUpdatingNotes(true);
     try {
-      const res = await fetch(`/api/threat-hunting/hypotheses/${selectedHypo.id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ status: selectedHypo.status, analyst_notes: analystNotes })
+      const res = await api.patch(`/threat-hunting/hypotheses/${selectedHypo.id}/status`, {
+        status: selectedHypo.status,
+        analyst_notes: analystNotes
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setSelectedHypo(updated);
-        setHypotheses(prev => prev.map(h => h.id === updated.id ? updated : h));
-      }
+      const updated = res.data;
+      setSelectedHypo(updated);
+      setHypotheses(prev => prev.map(h => h.id === updated.id ? updated : h));
     } catch (e) {
       console.error('Failed to save analyst notes', e);
     } finally {
